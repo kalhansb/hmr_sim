@@ -1,0 +1,108 @@
+<?xml version="1.0" ?>
+<!--
+  Flatforest recording world — spawns a trajectory_camera model and
+  records RGB-D + semantic frames along a trajectory file.
+  No robot, no ROS bridge needed.
+
+  Usage:
+    1. Generate trajectory:
+       python3 generate_trajectory.py -\-type lawnmower -\-output /tmp/traj/poses.json
+    2. Run recording (headless):
+       ign gazebo -s -r flatforest_record.sdf -\-iterations 10000
+
+  The TrajectoryRecorder plugin reads <trajectory_file> and <output_dir>
+  from SDF parameters. Edit below before running.
+-->
+<sdf version="1.9">
+  <world name="flatforest">
+    <scene>
+      <grid>false</grid>
+      <ambient>0.9 0.9 0.9 1</ambient>
+      <background>0.6 0.8 1.0 1</background>
+    </scene>
+
+    <physics name="10ms" type="dart">
+      <max_step_size>0.01</max_step_size>
+      <real_time_factor>0</real_time_factor>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+
+    <!-- Minimal system plugins for rendering sensors -->
+    <plugin name="ignition::gazebo::systems::Physics" filename="ignition-gazebo-physics-system" />
+    <plugin name="ignition::gazebo::systems::Sensors" filename="ignition-gazebo-sensors-system">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin name="ignition::gazebo::systems::UserCommands" filename="ignition-gazebo-user-commands-system" />
+
+    <!-- Trajectory recorder plugin -->
+    <plugin name="trajectory_recorder::TrajectoryRecorder" filename="TrajectoryRecorder">
+      <trajectory_file>/home/kalhan/Projects/HMR_Exploration_Experiment/hmr_exploration_ws/src/robot_sw/distributed_mapping/scovox_eval/results/flatforest_rendered/poses.json</trajectory_file>
+      <output_dir>/home/kalhan/Projects/HMR_Exploration_Experiment/hmr_exploration_ws/src/robot_sw/distributed_mapping/scovox_eval/results/flatforest_rendered</output_dir>
+      <model_name>trajectory_camera</model_name>
+      <settle_steps>10</settle_steps>
+    </plugin>
+
+    <!-- Light -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 100 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <gravity>0 0 -9.8</gravity>
+
+    <!-- Camera model for recording -->
+    <include>
+      <uri>model://trajectory_camera</uri>
+      <pose>0 0 1.5 0 0 0</pose>
+    </include>
+
+    <!-- === Flatforest world content === -->
+
+    <!-- Ground plane -->
+    <include>
+      <uri>model://cmu_grass_plane</uri>
+    </include>
+
+    <!-- Oak trees (from flatforestv2) -->
+    <include><uri>model://cmu_oak_tree</uri><name>oak_1</name><pose>-30.2822 -42.4041 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_2</name><pose>-42.796 8.7996 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_3</name><pose>-21.6479 0.5231 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_4</name><pose>-3.5314 -41.4912 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_5</name><pose>-43.8541 -36.244 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_6</name><pose>17.2254 -7.2024 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_7</name><pose>-36.3936 25.3023 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_8</name><pose>10.6614 37.3932 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_9</name><pose>-25.4363 -18.5684 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_10</name><pose>35.6768 20.0452 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_11</name><pose>-33.6336 -14.6174 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_12</name><pose>49.6076 -19.1128 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_13</name><pose>-24.8486 32.2072 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_14</name><pose>-26.3388 -49.6747 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_15</name><pose>-5.3654 22.3548 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_16</name><pose>21.5648 -38.7038 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_17</name><pose>-41.7264 -21.1494 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_18</name><pose>-32.4951 46.878 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_19</name><pose>39.6818 -41.9744 0 0 0 0</pose></include>
+    <include><uri>model://cmu_oak_tree</uri><name>oak_20</name><pose>-24.0126 -33.7722 0 0 0 0</pose></include>
+
+    <!-- Pine trees -->
+    <include><uri>model://cmu_pine_tree</uri><name>pine_1</name><pose>-43.5166 43.0714 0 0 0 0</pose></include>
+    <include><uri>model://cmu_pine_tree</uri><name>pine_2</name><pose>-35.4718 -28.7228 0 0 0 0</pose></include>
+    <include><uri>model://cmu_pine_tree</uri><name>pine_3</name><pose>22.5034 17.538 0 0 0 0</pose></include>
+    <include><uri>model://cmu_pine_tree</uri><name>pine_4</name><pose>-25.7024 42.8396 0 0 0 0</pose></include>
+    <include><uri>model://cmu_pine_tree</uri><name>pine_5</name><pose>43.3946 35.5032 0 0 0 0</pose></include>
+    <include><uri>model://cmu_pine_tree</uri><name>pine_6</name><pose>-38.3118 -6.4748 0 0 0 0</pose></include>
+    <include><uri>model://cmu_pine_tree</uri><name>pine_7</name><pose>13.7912 -25.0744 0 0 0 0</pose></include>
+    <include><uri>model://cmu_pine_tree</uri><name>pine_8</name><pose>-42.7945 49.6199 0 0 0 0</pose></include>
+
+  </world>
+</sdf>

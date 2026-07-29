@@ -1,0 +1,14 @@
+world: flatforest
+
+robots:
+  - name: atlas
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 0.0}
+
+teleop:
+  enable: false
+  joy_config: xbox
+  joy_dev: /dev/input/js0
+  robot_name: atlas

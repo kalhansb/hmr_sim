@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <gazebo>
+    <plugin filename="libgz_ros2_control-system.so"
+      name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <robot_param>robot_description</robot_param>
+      <robot_param_node>robot_state_publisher</robot_param_node>
+      <parameters>$(find curt_description)/config/ros2_control.yaml</parameters>
+      <ros>
+        <namespace>curt</namespace>
+      </ros>
+    </plugin>
+  </gazebo>
+
+  <!-- ROS2 Control setup -->
+  <ros2_control name="HardwareControl" type="system">
+    <hardware>
+      <xacro:if value="$(arg simulation)">
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </xacro:if>
+      <xacro:unless value="$(arg simulation)">
+        <plugin>ipa_ros2_control/CurtMiniHardwareInterface</plugin>
+      </xacro:unless>
+    </hardware>
+    <joint name="front_left_motor">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="front_right_motor">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="back_left_motor">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="back_right_motor">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+</robot>

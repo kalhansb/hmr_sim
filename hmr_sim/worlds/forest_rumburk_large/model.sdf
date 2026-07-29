@@ -1,0 +1,33 @@
+<?xml version="1.0" ?>
+<sdf version="1.5">
+  <model name="forest_rumburk_large">
+    <static>1</static>
+    <link name="link">
+      <pose>0 0 0 0 0 0</pose>
+      <visual name="visual">
+        <cast_shadows>false</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://forest_rumburk_large/meshes/mesh_color.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://forest_rumburk_large/materials/scripts</uri>
+            <uri>model://forest_rumburk_large/materials/textures</uri>
+            <name>forest_rumburk_large</name>
+          </script>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://forest_rumburk_large/meshes/collision_model.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
+
+

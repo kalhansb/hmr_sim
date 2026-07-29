@@ -1,0 +1,24 @@
+# ---- ROS/colcon build artifacts ----
+build/
+install/
+log/
+
+# ---- python bytecode ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ---- large mesh files (exceed GitHub's 100 MB per-file limit) ----
+# Carried over from the hmr_explore .gitignore — these were never published
+# and are absent from the checkout. Stage them from a local copy if needed.
+hmr_sim/worlds/forest_rumburk_large/meshes/collision_model.dae
+hmr_sim/worlds/forest_rumburk_large/meshes/mesh_color.dae
+hmr_sim/models/cmu_campus/meshes/campus.dae
+
+# ---- preview point clouds (~67 MB, not loaded by the simulator) ----
+# Visual previews only; gz never reads them. cmu_garage's was already
+# excluded upstream — the others follow the same precedent.
+hmr_sim/models/*/preview/pointcloud.ply
+
+# ---- sim outputs ----
+hmr_sim/results/

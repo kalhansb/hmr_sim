@@ -1,0 +1,55 @@
+<?xml version="1.0" ?>
+<sdf version='1.9'>
+  <world name='cmu_indoor'>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <physics name='10ms' type='ignored'>
+      <max_step_size>0.01</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <dart>
+        <collision_detector>bullet</collision_detector>
+        <solver>
+          <solver_type>dantzig</solver_type>
+        </solver>
+      </dart>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+    <plugin name='ignition::gazebo::systems::Physics' filename='ignition-gazebo-physics-system'/>
+    <plugin name='ignition::gazebo::systems::Sensors' filename='ignition-gazebo-sensors-system'>
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin name='ignition::gazebo::systems::SceneBroadcaster' filename='ignition-gazebo-scene-broadcaster-system'/>
+    <plugin name='ignition::gazebo::systems::UserCommands' filename='ignition-gazebo-user-commands-system'/>
+    <plugin name='ignition::gazebo::systems::Imu' filename='libignition-gazebo-imu-system.so'/>
+    <plugin name='hmr_net_sim_system::HMRNetSim' filename='HMRNetSim'/>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+
+    <light name='sun' type='directional'>
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <include>
+      <name>cmu_indoor</name>
+      <uri>model://cmu_indoor</uri>
+      <pose>0 0 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+  </world>
+</sdf>

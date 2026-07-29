@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package format="3">
+
+  <name>hmr_sim</name>
+
+  <version>0.0.1</version>
+
+  <description>The hmr_sim package for simulating outdoor heterogeneous multi-robot systems</description>
+
+  <maintainer email="kalhan.munasingarachchige.2023@ntu.ac.uk">Kalhan Boralessa</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- ROS2 python  -->
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+  <depend>rclpy</depend>
+
+  <!-- ROS2 C++ comms relay node -->
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+    <!-- Not sure if the following lines are ROS1 dependent -->
+    <gazebo_ros gazebo_plugin_path="lib"/>
+    <gazebo_ros gazebo_model_path="${prefix}/models"/>
+    <gazebo_ros gazebo_media_path="${prefix}/worlds"/>
+  </export>
+</package>

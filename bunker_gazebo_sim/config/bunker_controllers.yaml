@@ -1,0 +1,33 @@
+bunker/controller_manager:
+  ros__parameters:
+    update_rate: 100
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+bunker/diff_drive_controller:
+  ros__parameters:
+    left_wheel_names: ["wheel1_joint", "wheel1.1_jont", "wheel1.2_joint", "wheel1.3_joint", "wheel3_joint", "wheel3.1_joint", "wheel3.2_joint", "wheel3.3_joint"]
+    right_wheel_names: ["wheel2_joint", "wheel2.1_joint", "wheel2.2_joint", "wheel2.3_joint", "wheel4_joint", "wheel4.1_joint", "wheel4.2_joint", "wheel4.3_joint"]
+    
+    wheel_separation: 0.7
+    wheel_radius: 0.165
+    
+    use_stamped_vel: false
+    
+    publish_rate: 50.0
+    position_feedback: false
+    
+    open_loop: true
+    enable_odom_tf: true
+    
+    cmd_vel_timeout: 0.5
+    
+    odom_frame_id: odom
+    base_frame_id: base_link
+    
+    linear.x.max_velocity: 1.0
+    linear.x.min_velocity: -1.0
+    angular.z.max_velocity: 1.0
+    angular.z.min_velocity: -1.0

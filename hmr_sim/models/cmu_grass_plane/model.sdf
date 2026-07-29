@@ -1,0 +1,45 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="cmu_grass_plane">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>150 150</size>
+          </plane>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>50</mu>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="visual">
+        <cast_shadows>false</cast_shadows>
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>150 150</size>
+          </plane>
+        </geometry>
+        <material>
+          <diffuse>1.0 1.0 1.0</diffuse>
+          <specular>1.0 1.0 1.0</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://cmu_grass_plane/materials/textures/Grass_Albedo.jpg</albedo_map>
+              <normal_map>model://cmu_grass_plane/materials/textures/flat_normal.png</normal_map>
+            </metal>
+          </pbr>
+        </material>
+        <plugin filename="ignition-gazebo-label-system" name="ignition::gazebo::systems::Label">
+          <label>1</label>
+        </plugin>
+      </visual>
+    </link>
+  </model>
+</sdf>

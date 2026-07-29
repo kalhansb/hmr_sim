@@ -1,0 +1,433 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="plant_forest">
+    <scene>
+      <grid>false</grid>
+      <ambient>0.9 0.9 0.9 1</ambient>
+      <background>0.6 0.8 1.0 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <physics name="10ms" type="dart">
+      <max_step_size>0.01</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <dart>
+        <collision_detector>bullet</collision_detector>
+        <solver>
+          <solver_type>dantzig</solver_type>
+        </solver>
+      </dart>
+    </physics>
+    <plugin name="ignition::gazebo::systems::Physics" filename="ignition-gazebo-physics-system" />
+    <plugin name="ignition::gazebo::systems::Sensors" filename="ignition-gazebo-sensors-system">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin name="ignition::gazebo::systems::SceneBroadcaster" filename="ignition-gazebo-scene-broadcaster-system" />
+    <plugin name="ignition::gazebo::systems::UserCommands" filename="ignition-gazebo-user-commands-system" />
+    <plugin name="ignition::gazebo::systems::Imu" filename="libignition-gazebo-imu-system.so" />
+    <plugin name="hmr_net_sim_system::HMRNetSim" filename="HMRNetSim">
+      <robot>
+        <name>atlas</name>
+      </robot>
+      <robot>
+        <name>bestla</name>
+      </robot>
+    </plugin>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic" />
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>110 110</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>110 110</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.3 0.5 0.2 1</ambient>
+            <diffuse>0.3 0.5 0.2 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+          <plugin filename="ignition-gazebo-label-system" name="ignition::gazebo::systems::Label">
+            <label>1</label>
+          </plugin>
+        </visual>
+      </link>
+    </model>
+    <!-- Sky planes -->
+    <model name="sky_box">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="top">
+          <pose>0 0 50 0 0 0</pose>
+          <geometry><box><size>200 200 0.1</size></box></geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <emissive>0.4 0.6 0.85 1</emissive>
+            <pbr><metal><albedo_map>model://sky_texture/textures/sky_gradient.png</albedo_map></metal></pbr>
+          </material>
+        </visual>
+        <visual name="north">
+          <pose>0 100 0 1.5708 0 0</pose>
+          <geometry><box><size>200 100 0.1</size></box></geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <emissive>0.4 0.6 0.85 1</emissive>
+            <pbr><metal><albedo_map>model://sky_texture/textures/sky_gradient.png</albedo_map></metal></pbr>
+          </material>
+        </visual>
+        <visual name="south">
+          <pose>0 -100 0 1.5708 0 0</pose>
+          <geometry><box><size>200 100 0.1</size></box></geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <emissive>0.4 0.6 0.85 1</emissive>
+            <pbr><metal><albedo_map>model://sky_texture/textures/sky_gradient.png</albedo_map></metal></pbr>
+          </material>
+        </visual>
+        <visual name="east">
+          <pose>100 0 0 0 1.5708 0</pose>
+          <geometry><box><size>100 200 0.1</size></box></geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <emissive>0.4 0.6 0.85 1</emissive>
+            <pbr><metal><albedo_map>model://sky_texture/textures/sky_gradient.png</albedo_map></metal></pbr>
+          </material>
+        </visual>
+        <visual name="west">
+          <pose>-100 0 0 0 1.5708 0</pose>
+          <geometry><box><size>100 200 0.1</size></box></geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <emissive>0.4 0.6 0.85 1</emissive>
+            <pbr><metal><albedo_map>model://sky_texture/textures/sky_gradient.png</albedo_map></metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <!-- ============ Plant models ============ -->
+    <include><name>tree_0</name><uri>model://tree_03_3</uri><pose>-37.3122 23.1888 0 0 0 1.5387</pose><static>true</static></include>
+    <include><name>tree_1</name><uri>model://tree_01_3</uri><pose>22.7012 16.9632 0 0 0 5.6057</pose><static>true</static></include>
+    <include><name>tree_2</name><uri>model://tree_01_2</uri><pose>8.6873 -44.9489 0 0 0 0.5887</pose><static>true</static></include>
+    <include><name>tree_3</name><uri>model://tree_01_4</uri><pose>0.5141 -45.4525 0 0 0 1.2493</pose><static>true</static></include>
+    <include><name>tree_4</name><uri>model://tree_03_3</uri><pose>19.3272 -7.7261 0 0 0 2.8225</pose><static>true</static></include>
+    <include><name>tree_5</name><uri>model://tree_02_1</uri><pose>29.7053 -47.3761 0 0 0 5.0631</pose><static>true</static></include>
+    <include><name>tree_6</name><uri>model://tree_03_4</uri><pose>-7.4290 -21.3244 0 0 0 1.3529</pose><static>true</static></include>
+    <include><name>tree_7</name><uri>model://tree_02_2</uri><pose>-38.1878 -11.5270 0 0 0 2.2555</pose><static>true</static></include>
+    <include><name>tree_8</name><uri>model://tree_02_2</uri><pose>9.9577 29.4843 0 0 0 4.5850</pose><static>true</static></include>
+    <include><name>tree_9</name><uri>model://tree_03_1</uri><pose>-36.0167 40.5404 0 0 0 0.4951</pose><static>true</static></include>
+    <include><name>tree_10</name><uri>model://tree_02_1</uri><pose>31.6228 11.3779 0 0 0 5.4143</pose><static>true</static></include>
+    <include><name>tree_11</name><uri>model://tree_03_2</uri><pose>-29.5403 -41.3227 0 0 0 4.1548</pose><static>true</static></include>
+    <include><name>tree_12</name><uri>model://tree_02_1</uri><pose>46.5813 34.1105 0 0 0 5.4443</pose><static>true</static></include>
+    <include><name>tree_13</name><uri>model://tree_02_3</uri><pose>-21.3145 13.0257 0 0 0 2.2923</pose><static>true</static></include>
+    <include><name>tree_14</name><uri>model://tree_02_2</uri><pose>-13.8940 16.3368 0 0 0 4.4097</pose><static>true</static></include>
+    <include><name>tree_15</name><uri>model://tree_03_3</uri><pose>14.2114 10.4766 0 0 0 1.0753</pose><static>true</static></include>
+    <include><name>tree_16</name><uri>model://tree_03_4</uri><pose>-24.4982 -3.6230 0 0 0 1.6961</pose><static>true</static></include>
+    <include><name>tree_17</name><uri>model://tree_03_3</uri><pose>18.0635 -26.9169 0 0 0 2.0375</pose><static>true</static></include>
+    <include><name>tree_18</name><uri>model://tree_01_1</uri><pose>-26.0114 -44.9184 0 0 0 1.9820</pose><static>true</static></include>
+    <include><name>tree_19</name><uri>model://tree_02_1</uri><pose>-41.6459 39.6611 0 0 0 3.5637</pose><static>true</static></include>
+    <include><name>tree_20</name><uri>model://tree_03_4</uri><pose>-17.7909 14.9221 0 0 0 2.4858</pose><static>true</static></include>
+    <include><name>tree_21</name><uri>model://tree_03_3</uri><pose>-3.9502 -22.5715 0 0 0 1.5496</pose><static>true</static></include>
+    <include><name>tree_22</name><uri>model://tree_03_1</uri><pose>3.7418 23.7133 0 0 0 2.6919</pose><static>true</static></include>
+    <include><name>tree_23</name><uri>model://tree_03_2</uri><pose>-9.6576 -26.9452 0 0 0 6.2677</pose><static>true</static></include>
+    <include><name>tree_24</name><uri>model://tree_03_1</uri><pose>-0.6225 24.5551 0 0 0 5.4105</pose><static>true</static></include>
+    <include><name>tree_25</name><uri>model://tree_01_3</uri><pose>12.2348 28.0396 0 0 0 2.6525</pose><static>true</static></include>
+    <include><name>tree_26</name><uri>model://tree_01_2</uri><pose>-11.0623 9.2053 0 0 0 2.9408</pose><static>true</static></include>
+    <include><name>tree_27</name><uri>model://tree_02_1</uri><pose>45.2235 34.6349 0 0 0 0.0721</pose><static>true</static></include>
+    <include><name>tree_28</name><uri>model://tree_03_4</uri><pose>-37.0030 36.9397 0 0 0 4.7179</pose><static>true</static></include>
+    <include><name>tree_29</name><uri>model://tree_03_3</uri><pose>-15.3432 -19.8240 0 0 0 0.9937</pose><static>true</static></include>
+    <include><name>tree_30</name><uri>model://tree_01_1</uri><pose>43.5663 36.0819 0 0 0 1.6549</pose><static>true</static></include>
+    <include><name>tree_31</name><uri>model://tree_03_1</uri><pose>25.1484 0.7374 0 0 0 0.6686</pose><static>true</static></include>
+    <include><name>tree_32</name><uri>model://tree_03_3</uri><pose>-19.3493 13.3392 0 0 0 3.8263</pose><static>true</static></include>
+    <include><name>tree_33</name><uri>model://tree_01_3</uri><pose>-12.1043 -32.4913 0 0 0 5.9910</pose><static>true</static></include>
+    <include><name>tree_34</name><uri>model://tree_03_1</uri><pose>40.1754 9.4987 0 0 0 3.0700</pose><static>true</static></include>
+    <include><name>tree_35</name><uri>model://tree_01_2</uri><pose>41.1935 36.3573 0 0 0 5.2255</pose><static>true</static></include>
+    <include><name>tree_36</name><uri>model://tree_02_1</uri><pose>-25.0126 -24.8763 0 0 0 3.5648</pose><static>true</static></include>
+    <include><name>tree_37</name><uri>model://tree_01_2</uri><pose>-39.7773 -1.3449 0 0 0 0.4349</pose><static>true</static></include>
+    <include><name>tree_38</name><uri>model://tree_03_1</uri><pose>25.5201 -35.6744 0 0 0 2.9863</pose><static>true</static></include>
+    <include><name>tree_39</name><uri>model://tree_03_1</uri><pose>-32.1478 2.6567 0 0 0 3.8113</pose><static>true</static></include>
+    <include><name>tree_40</name><uri>model://tree_01_4</uri><pose>41.1757 24.5055 0 0 0 4.3346</pose><static>true</static></include>
+    <include><name>tree_41</name><uri>model://tree_03_4</uri><pose>-18.0752 47.5343 0 0 0 4.0833</pose><static>true</static></include>
+    <include><name>tree_42</name><uri>model://tree_02_4</uri><pose>38.3630 -4.6573 0 0 0 1.5576</pose><static>true</static></include>
+    <include><name>tree_43</name><uri>model://tree_01_2</uri><pose>-15.5438 8.4776 0 0 0 1.4459</pose><static>true</static></include>
+    <include><name>tree_44</name><uri>model://tree_01_4</uri><pose>-47.3097 19.9527 0 0 0 0.3699</pose><static>true</static></include>
+    <include><name>tree_45</name><uri>model://tree_01_2</uri><pose>38.9203 34.5250 0 0 0 0.4452</pose><static>true</static></include>
+    <include><name>tree_46</name><uri>model://tree_01_4</uri><pose>-21.2662 -1.4002 0 0 0 3.3881</pose><static>true</static></include>
+    <include><name>tree_47</name><uri>model://tree_03_4</uri><pose>41.8094 6.8201 0 0 0 2.9699</pose><static>true</static></include>
+    <include><name>tree_48</name><uri>model://tree_02_4</uri><pose>29.5197 -29.7206 0 0 0 0.6090</pose><static>true</static></include>
+    <include><name>tree_49</name><uri>model://tree_02_3</uri><pose>-13.9874 -8.5342 0 0 0 5.4276</pose><static>true</static></include>
+    <include><name>tree_50</name><uri>model://tree_01_1</uri><pose>16.6430 46.4799 0 0 0 0.6184</pose><static>true</static></include>
+    <include><name>tree_51</name><uri>model://tree_02_3</uri><pose>21.9085 28.8569 0 0 0 0.6866</pose><static>true</static></include>
+    <include><name>tree_52</name><uri>model://tree_01_4</uri><pose>-29.7399 -4.9331 0 0 0 2.6508</pose><static>true</static></include>
+    <include><name>tree_53</name><uri>model://tree_02_1</uri><pose>-3.5877 35.9507 0 0 0 0.4737</pose><static>true</static></include>
+    <include><name>tree_54</name><uri>model://tree_03_1</uri><pose>-38.6008 14.6059 0 0 0 3.3966</pose><static>true</static></include>
+    <include><name>tree_55</name><uri>model://tree_01_1</uri><pose>45.0236 40.9312 0 0 0 5.3325</pose><static>true</static></include>
+    <include><name>tree_56</name><uri>model://tree_01_3</uri><pose>-8.9843 -1.7896 0 0 0 5.4328</pose><static>true</static></include>
+    <include><name>tree_57</name><uri>model://tree_01_1</uri><pose>-32.1948 -47.7931 0 0 0 2.4531</pose><static>true</static></include>
+    <include><name>tree_58</name><uri>model://tree_02_4</uri><pose>-20.6161 18.8728 0 0 0 4.5899</pose><static>true</static></include>
+    <include><name>tree_59</name><uri>model://tree_03_1</uri><pose>15.5396 -1.2795 0 0 0 1.1932</pose><static>true</static></include>
+    <include><name>bush_0</name><uri>model://bush_02</uri><pose>44.9961 7.6013 0 0 0 3.4067</pose><static>true</static></include>
+    <include><name>bush_1</name><uri>model://bush_03</uri><pose>-42.5121 8.0810 0 0 0 3.1595</pose><static>true</static></include>
+    <include><name>bush_2</name><uri>model://bush_05</uri><pose>-32.8865 44.2348 0 0 0 0.5034</pose><static>true</static></include>
+    <include><name>bush_3</name><uri>model://bush_02</uri><pose>-41.4220 -41.4758 0 0 0 5.4150</pose><static>true</static></include>
+    <include><name>bush_4</name><uri>model://bush_04</uri><pose>-36.4909 37.4676 0 0 0 1.5470</pose><static>true</static></include>
+    <include><name>bush_5</name><uri>model://bush_05</uri><pose>-44.1848 -40.1296 0 0 0 4.1304</pose><static>true</static></include>
+    <include><name>bush_6</name><uri>model://bush_05</uri><pose>2.1871 41.7318 0 0 0 1.2834</pose><static>true</static></include>
+    <include><name>bush_7</name><uri>model://bush_03</uri><pose>-25.0861 -10.0046 0 0 0 4.2204</pose><static>true</static></include>
+    <include><name>bush_8</name><uri>model://bush_03</uri><pose>-4.1064 41.1858 0 0 0 5.8794</pose><static>true</static></include>
+    <include><name>bush_9</name><uri>model://bush_01</uri><pose>-4.0046 47.8516 0 0 0 6.2587</pose><static>true</static></include>
+    <include><name>bush_10</name><uri>model://bush_01</uri><pose>3.6129 0.5649 0 0 0 0.8322</pose><static>true</static></include>
+    <include><name>bush_11</name><uri>model://bush_03</uri><pose>36.5630 36.4099 0 0 0 2.3218</pose><static>true</static></include>
+    <include><name>bush_12</name><uri>model://bush_02</uri><pose>-5.9343 4.1489 0 0 0 1.9008</pose><static>true</static></include>
+    <include><name>bush_13</name><uri>model://bush_05</uri><pose>-47.2490 30.4420 0 0 0 1.8811</pose><static>true</static></include>
+    <include><name>bush_14</name><uri>model://bush_01</uri><pose>42.1373 -35.1081 0 0 0 0.7253</pose><static>true</static></include>
+    <include><name>bush_15</name><uri>model://bush_01</uri><pose>23.2720 -33.0770 0 0 0 1.7703</pose><static>true</static></include>
+    <include><name>bush_16</name><uri>model://bush_02</uri><pose>20.8908 -28.4547 0 0 0 3.9850</pose><static>true</static></include>
+    <include><name>bush_17</name><uri>model://bush_03</uri><pose>0.5193 -23.8924 0 0 0 5.7061</pose><static>true</static></include>
+    <include><name>bush_18</name><uri>model://bush_01</uri><pose>-39.1393 -7.3367 0 0 0 1.7384</pose><static>true</static></include>
+    <include><name>bush_19</name><uri>model://bush_01</uri><pose>-15.9786 -35.4413 0 0 0 6.1563</pose><static>true</static></include>
+    <include><name>bush_20</name><uri>model://bush_02</uri><pose>23.1582 4.9613 0 0 0 2.6872</pose><static>true</static></include>
+    <include><name>bush_21</name><uri>model://bush_01</uri><pose>-37.2601 42.7249 0 0 0 4.3418</pose><static>true</static></include>
+    <include><name>bush_22</name><uri>model://bush_02</uri><pose>4.3767 32.1211 0 0 0 3.6600</pose><static>true</static></include>
+    <include><name>bush_23</name><uri>model://bush_02</uri><pose>-6.7405 -43.9844 0 0 0 2.2912</pose><static>true</static></include>
+    <include><name>bush_24</name><uri>model://bush_01</uri><pose>38.2968 -27.8327 0 0 0 1.5678</pose><static>true</static></include>
+    <include><name>bush_25</name><uri>model://bush_01</uri><pose>-14.0469 5.7488 0 0 0 5.4960</pose><static>true</static></include>
+    <include><name>bush_26</name><uri>model://bush_05</uri><pose>23.9499 40.8733 0 0 0 1.4875</pose><static>true</static></include>
+    <include><name>bush_27</name><uri>model://bush_02</uri><pose>45.7158 29.8341 0 0 0 5.5381</pose><static>true</static></include>
+    <include><name>bush_28</name><uri>model://bush_01</uri><pose>-30.7814 40.7508 0 0 0 4.9159</pose><static>true</static></include>
+    <include><name>bush_29</name><uri>model://bush_04</uri><pose>29.0146 34.9501 0 0 0 5.0941</pose><static>true</static></include>
+    <include><name>bush_30</name><uri>model://bush_03</uri><pose>-32.7170 19.3227 0 0 0 2.4036</pose><static>true</static></include>
+    <include><name>bush_31</name><uri>model://bush_01</uri><pose>34.4250 -26.6464 0 0 0 5.1308</pose><static>true</static></include>
+    <include><name>bush_32</name><uri>model://bush_04</uri><pose>-14.4328 30.7715 0 0 0 5.4747</pose><static>true</static></include>
+    <include><name>bush_33</name><uri>model://bush_02</uri><pose>-45.7282 -29.4595 0 0 0 2.0625</pose><static>true</static></include>
+    <include><name>bush_34</name><uri>model://bush_01</uri><pose>44.8214 -21.2040 0 0 0 4.0305</pose><static>true</static></include>
+    <include><name>bush_35</name><uri>model://bush_04</uri><pose>17.2337 32.9915 0 0 0 2.0807</pose><static>true</static></include>
+    <include><name>bush_36</name><uri>model://bush_01</uri><pose>-36.9272 45.1585 0 0 0 1.1220</pose><static>true</static></include>
+    <include><name>bush_37</name><uri>model://bush_03</uri><pose>-44.3273 9.2708 0 0 0 2.1720</pose><static>true</static></include>
+    <include><name>bush_38</name><uri>model://bush_03</uri><pose>-6.1062 46.4866 0 0 0 0.7266</pose><static>true</static></include>
+    <include><name>bush_39</name><uri>model://bush_05</uri><pose>-29.7524 -43.7389 0 0 0 2.7398</pose><static>true</static></include>
+    <include><name>flowers_0</name><uri>model://flowers_02</uri><pose>-13.0347 -41.2825 0 0 0 4.1735</pose><static>true</static></include>
+    <include><name>flowers_1</name><uri>model://flowers_03</uri><pose>11.8229 15.6852 0 0 0 0.7830</pose><static>true</static></include>
+    <include><name>flowers_2</name><uri>model://flowers_03</uri><pose>0.6838 16.0217 0 0 0 2.0495</pose><static>true</static></include>
+    <include><name>flowers_3</name><uri>model://flowers_03</uri><pose>5.2236 -29.5834 0 0 0 4.1779</pose><static>true</static></include>
+    <include><name>flowers_4</name><uri>model://flowers_04</uri><pose>17.0225 38.6693 0 0 0 3.8674</pose><static>true</static></include>
+    <include><name>flowers_5</name><uri>model://flowers_03</uri><pose>-9.0168 32.0376 0 0 0 1.9093</pose><static>true</static></include>
+    <include><name>flowers_6</name><uri>model://flowers_02</uri><pose>-6.7307 7.6785 0 0 0 4.1136</pose><static>true</static></include>
+    <include><name>flowers_7</name><uri>model://flowers_04</uri><pose>-5.5885 16.8602 0 0 0 3.2118</pose><static>true</static></include>
+    <include><name>flowers_8</name><uri>model://flowers_02</uri><pose>15.2497 -20.7565 0 0 0 4.1711</pose><static>true</static></include>
+    <include><name>flowers_9</name><uri>model://flowers_03</uri><pose>-39.0348 43.3920 0 0 0 1.4757</pose><static>true</static></include>
+    <include><name>flowers_10</name><uri>model://flowers_03</uri><pose>-26.4345 -28.8835 0 0 0 0.1535</pose><static>true</static></include>
+    <include><name>flowers_11</name><uri>model://flowers_02</uri><pose>46.4579 10.6823 0 0 0 4.8286</pose><static>true</static></include>
+    <include><name>flowers_12</name><uri>model://flowers_04</uri><pose>-8.2137 12.4575 0 0 0 1.2217</pose><static>true</static></include>
+    <include><name>flowers_13</name><uri>model://flowers_04</uri><pose>-0.5398 -24.5775 0 0 0 4.1221</pose><static>true</static></include>
+    <include><name>flowers_14</name><uri>model://flowers_01</uri><pose>37.6953 34.6023 0 0 0 5.5635</pose><static>true</static></include>
+    <include><name>flowers_15</name><uri>model://flowers_04</uri><pose>-26.9913 29.1945 0 0 0 4.3725</pose><static>true</static></include>
+    <include><name>flowers_16</name><uri>model://flowers_04</uri><pose>-43.1790 -24.0770 0 0 0 5.3303</pose><static>true</static></include>
+    <include><name>flowers_17</name><uri>model://flowers_04</uri><pose>-35.1994 -3.3942 0 0 0 3.3372</pose><static>true</static></include>
+    <include><name>flowers_18</name><uri>model://flowers_03</uri><pose>43.2038 37.5769 0 0 0 3.8494</pose><static>true</static></include>
+    <include><name>flowers_19</name><uri>model://flowers_04</uri><pose>31.7346 4.5957 0 0 0 5.6373</pose><static>true</static></include>
+    <include><name>flowers_20</name><uri>model://flowers_04</uri><pose>-4.7933 24.1706 0 0 0 5.2770</pose><static>true</static></include>
+    <include><name>flowers_21</name><uri>model://flowers_03</uri><pose>25.5181 2.0448 0 0 0 3.9380</pose><static>true</static></include>
+    <include><name>flowers_22</name><uri>model://flowers_03</uri><pose>-5.7722 20.5003 0 0 0 1.4734</pose><static>true</static></include>
+    <include><name>flowers_23</name><uri>model://flowers_03</uri><pose>-17.3079 3.8546 0 0 0 0.8694</pose><static>true</static></include>
+    <include><name>flowers_24</name><uri>model://flowers_02</uri><pose>-11.2286 -33.3307 0 0 0 1.3443</pose><static>true</static></include>
+    <include><name>flowers_25</name><uri>model://flowers_04</uri><pose>-8.8705 4.0907 0 0 0 2.6124</pose><static>true</static></include>
+    <include><name>flowers_26</name><uri>model://flowers_02</uri><pose>31.9576 -10.6102 0 0 0 4.8368</pose><static>true</static></include>
+    <include><name>flowers_27</name><uri>model://flowers_01</uri><pose>34.2463 25.4971 0 0 0 2.3900</pose><static>true</static></include>
+    <include><name>flowers_28</name><uri>model://flowers_01</uri><pose>42.5032 -19.3332 0 0 0 2.4504</pose><static>true</static></include>
+    <include><name>flowers_29</name><uri>model://flowers_04</uri><pose>3.6692 22.5249 0 0 0 5.0257</pose><static>true</static></include>
+    <include><name>grass_0</name><uri>model://grass_01</uri><pose>-1.1300 -21.7982 0 0 0 3.0514</pose><static>true</static></include>
+    <include><name>grass_1</name><uri>model://grass_02</uri><pose>-15.7316 17.1976 0 0 0 2.5404</pose><static>true</static></include>
+    <include><name>grass_2</name><uri>model://grass_01</uri><pose>32.6885 40.2760 0 0 0 6.1621</pose><static>true</static></include>
+    <include><name>grass_3</name><uri>model://grass_03</uri><pose>-45.4112 -10.1741 0 0 0 3.5462</pose><static>true</static></include>
+    <include><name>grass_4</name><uri>model://grass_01</uri><pose>-39.9410 -6.8532 0 0 0 5.4466</pose><static>true</static></include>
+    <include><name>grass_5</name><uri>model://grass_01</uri><pose>-43.1727 -11.6060 0 0 0 1.3299</pose><static>true</static></include>
+    <include><name>grass_6</name><uri>model://grass_02</uri><pose>-15.5999 36.4454 0 0 0 1.7483</pose><static>true</static></include>
+    <include><name>grass_7</name><uri>model://grass_02</uri><pose>-23.7819 -40.1370 0 0 0 0.1218</pose><static>true</static></include>
+    <include><name>grass_8</name><uri>model://grass_03</uri><pose>-42.9998 43.3843 0 0 0 1.4088</pose><static>true</static></include>
+    <include><name>grass_9</name><uri>model://grass_01</uri><pose>26.9984 14.5684 0 0 0 4.7390</pose><static>true</static></include>
+    <include><name>grass_10</name><uri>model://grass_01</uri><pose>-28.8614 -46.0435 0 0 0 0.9574</pose><static>true</static></include>
+    <include><name>grass_11</name><uri>model://grass_01</uri><pose>-2.5381 -37.0186 0 0 0 5.9549</pose><static>true</static></include>
+    <include><name>grass_12</name><uri>model://grass_02</uri><pose>19.1486 25.6222 0 0 0 1.0543</pose><static>true</static></include>
+    <include><name>grass_13</name><uri>model://grass_03</uri><pose>44.5185 20.9623 0 0 0 4.8870</pose><static>true</static></include>
+    <include><name>grass_14</name><uri>model://grass_01</uri><pose>44.6132 -37.6225 0 0 0 0.1613</pose><static>true</static></include>
+    <include><name>grass_15</name><uri>model://grass_02</uri><pose>7.2765 39.1705 0 0 0 2.3581</pose><static>true</static></include>
+    <include><name>grass_16</name><uri>model://grass_03</uri><pose>-28.9603 8.8414 0 0 0 5.2186</pose><static>true</static></include>
+    <include><name>grass_17</name><uri>model://grass_01</uri><pose>-38.2175 26.1582 0 0 0 5.3425</pose><static>true</static></include>
+    <include><name>grass_18</name><uri>model://grass_03</uri><pose>29.3307 28.4378 0 0 0 3.5559</pose><static>true</static></include>
+    <include><name>grass_19</name><uri>model://grass_01</uri><pose>-14.6684 -6.8757 0 0 0 2.3284</pose><static>true</static></include>
+    <include><name>grass_20</name><uri>model://grass_03</uri><pose>14.1642 -46.7854 0 0 0 2.6393</pose><static>true</static></include>
+    <include><name>grass_21</name><uri>model://grass_02</uri><pose>-37.8683 44.2356 0 0 0 3.9935</pose><static>true</static></include>
+    <include><name>grass_22</name><uri>model://grass_02</uri><pose>19.9016 -6.1932 0 0 0 4.6106</pose><static>true</static></include>
+    <include><name>grass_23</name><uri>model://grass_03</uri><pose>-22.0721 29.5871 0 0 0 3.3814</pose><static>true</static></include>
+    <include><name>grass_24</name><uri>model://grass_02</uri><pose>-3.3721 31.2705 0 0 0 3.7226</pose><static>true</static></include>
+    <include><name>grass_25</name><uri>model://grass_02</uri><pose>33.7645 31.7502 0 0 0 0.5445</pose><static>true</static></include>
+    <include><name>grass_26</name><uri>model://grass_02</uri><pose>-24.5891 -3.3880 0 0 0 3.8348</pose><static>true</static></include>
+    <include><name>grass_27</name><uri>model://grass_02</uri><pose>-15.7059 -0.5466 0 0 0 2.0421</pose><static>true</static></include>
+    <include><name>grass_28</name><uri>model://grass_02</uri><pose>-27.6365 28.5919 0 0 0 2.1384</pose><static>true</static></include>
+    <include><name>grass_29</name><uri>model://grass_03</uri><pose>19.3136 -21.4782 0 0 0 0.0638</pose><static>true</static></include>
+    <include><name>grass_30</name><uri>model://grass_01</uri><pose>-39.7812 21.1272 0 0 0 3.0698</pose><static>true</static></include>
+    <include><name>grass_31</name><uri>model://grass_01</uri><pose>18.2985 14.0067 0 0 0 3.0839</pose><static>true</static></include>
+    <include><name>grass_32</name><uri>model://grass_01</uri><pose>-39.0669 -26.7267 0 0 0 4.3466</pose><static>true</static></include>
+    <include><name>grass_33</name><uri>model://grass_02</uri><pose>15.7402 -12.5740 0 0 0 3.4776</pose><static>true</static></include>
+    <include><name>grass_34</name><uri>model://grass_02</uri><pose>-7.1516 23.6098 0 0 0 2.0784</pose><static>true</static></include>
+    <include><name>grass_35</name><uri>model://grass_03</uri><pose>-4.4405 -18.5642 0 0 0 1.4485</pose><static>true</static></include>
+    <include><name>grass_36</name><uri>model://grass_03</uri><pose>-29.5119 -36.5227 0 0 0 3.3669</pose><static>true</static></include>
+    <include><name>grass_37</name><uri>model://grass_03</uri><pose>-30.2256 -27.2271 0 0 0 3.0423</pose><static>true</static></include>
+    <include><name>grass_38</name><uri>model://grass_03</uri><pose>8.6003 24.9800 0 0 0 3.7497</pose><static>true</static></include>
+    <include><name>grass_39</name><uri>model://grass_01</uri><pose>31.9323 -19.5603 0 0 0 2.2675</pose><static>true</static></include>
+    <include><name>grass_40</name><uri>model://grass_02</uri><pose>-46.6418 3.2770 0 0 0 1.7235</pose><static>true</static></include>
+    <include><name>grass_41</name><uri>model://grass_01</uri><pose>5.1225 18.9521 0 0 0 0.7934</pose><static>true</static></include>
+    <include><name>grass_42</name><uri>model://grass_02</uri><pose>-38.1516 -46.8225 0 0 0 1.7866</pose><static>true</static></include>
+    <include><name>grass_43</name><uri>model://grass_02</uri><pose>-5.7150 -30.3011 0 0 0 0.3228</pose><static>true</static></include>
+    <include><name>grass_44</name><uri>model://grass_02</uri><pose>-37.0476 -41.7270 0 0 0 3.0897</pose><static>true</static></include>
+    <include><name>grass_45</name><uri>model://grass_03</uri><pose>12.4268 -42.8535 0 0 0 0.9374</pose><static>true</static></include>
+    <include><name>grass_46</name><uri>model://grass_03</uri><pose>43.1161 -39.8226 0 0 0 1.5594</pose><static>true</static></include>
+    <include><name>grass_47</name><uri>model://grass_03</uri><pose>25.3866 10.2065 0 0 0 4.9684</pose><static>true</static></include>
+    <include><name>grass_48</name><uri>model://grass_01</uri><pose>26.4666 -11.4837 0 0 0 5.7083</pose><static>true</static></include>
+    <include><name>grass_49</name><uri>model://grass_02</uri><pose>34.5760 47.0430 0 0 0 1.9188</pose><static>true</static></include>
+    <include><name>clover_0</name><uri>model://clover_05</uri><pose>-42.2179 44.1704 0 0 0 0.6235</pose><static>true</static></include>
+    <include><name>clover_1</name><uri>model://clover_02</uri><pose>12.0494 -22.5940 0 0 0 0.5101</pose><static>true</static></include>
+    <include><name>clover_2</name><uri>model://clover_02</uri><pose>-31.3139 -40.7938 0 0 0 0.0168</pose><static>true</static></include>
+    <include><name>clover_3</name><uri>model://clover_04</uri><pose>18.1796 -2.8884 0 0 0 0.2051</pose><static>true</static></include>
+    <include><name>clover_4</name><uri>model://clover_03</uri><pose>19.8678 19.4868 0 0 0 2.8528</pose><static>true</static></include>
+    <include><name>clover_5</name><uri>model://clover_02</uri><pose>40.6955 27.6315 0 0 0 3.9274</pose><static>true</static></include>
+    <include><name>clover_6</name><uri>model://clover_02</uri><pose>-7.1867 4.2780 0 0 0 4.0692</pose><static>true</static></include>
+    <include><name>clover_7</name><uri>model://clover_03</uri><pose>31.3566 -41.1447 0 0 0 1.0425</pose><static>true</static></include>
+    <include><name>clover_8</name><uri>model://clover_03</uri><pose>9.1242 31.1271 0 0 0 5.7880</pose><static>true</static></include>
+    <include><name>clover_9</name><uri>model://clover_04</uri><pose>-36.0620 18.1131 0 0 0 4.3966</pose><static>true</static></include>
+    <include><name>clover_10</name><uri>model://clover_03</uri><pose>0.0453 -0.5957 0 0 0 0.5054</pose><static>true</static></include>
+    <include><name>clover_11</name><uri>model://clover_01</uri><pose>37.3846 22.5153 0 0 0 3.7932</pose><static>true</static></include>
+    <include><name>clover_12</name><uri>model://clover_01</uri><pose>-39.2326 44.3435 0 0 0 5.2525</pose><static>true</static></include>
+    <include><name>clover_13</name><uri>model://clover_05</uri><pose>8.3638 -46.0084 0 0 0 4.8051</pose><static>true</static></include>
+    <include><name>clover_14</name><uri>model://clover_03</uri><pose>7.3197 25.2585 0 0 0 1.1008</pose><static>true</static></include>
+    <include><name>clover_15</name><uri>model://clover_05</uri><pose>14.5449 39.9430 0 0 0 1.1403</pose><static>true</static></include>
+    <include><name>clover_16</name><uri>model://clover_05</uri><pose>-6.1550 30.1675 0 0 0 6.0888</pose><static>true</static></include>
+    <include><name>clover_17</name><uri>model://clover_04</uri><pose>-14.5957 -16.0024 0 0 0 4.2106</pose><static>true</static></include>
+    <include><name>clover_18</name><uri>model://clover_02</uri><pose>-16.3388 18.5927 0 0 0 1.8109</pose><static>true</static></include>
+    <include><name>clover_19</name><uri>model://clover_04</uri><pose>30.1023 4.8093 0 0 0 2.8578</pose><static>true</static></include>
+    <include><name>clover_20</name><uri>model://clover_03</uri><pose>-23.7697 -36.8715 0 0 0 4.8541</pose><static>true</static></include>
+    <include><name>clover_21</name><uri>model://clover_05</uri><pose>31.1930 -47.8895 0 0 0 5.4624</pose><static>true</static></include>
+    <include><name>clover_22</name><uri>model://clover_04</uri><pose>-8.3282 -29.9921 0 0 0 2.2731</pose><static>true</static></include>
+    <include><name>clover_23</name><uri>model://clover_04</uri><pose>12.0392 24.9591 0 0 0 1.2790</pose><static>true</static></include>
+    <include><name>clover_24</name><uri>model://clover_05</uri><pose>-35.4227 -20.3492 0 0 0 5.5345</pose><static>true</static></include>
+    <include><name>clover_25</name><uri>model://clover_04</uri><pose>-36.3431 45.4221 0 0 0 3.8257</pose><static>true</static></include>
+    <include><name>clover_26</name><uri>model://clover_02</uri><pose>20.1392 -18.1680 0 0 0 0.0859</pose><static>true</static></include>
+    <include><name>clover_27</name><uri>model://clover_04</uri><pose>-39.0519 47.2567 0 0 0 5.7361</pose><static>true</static></include>
+    <include><name>clover_28</name><uri>model://clover_04</uri><pose>42.9178 14.1801 0 0 0 0.9674</pose><static>true</static></include>
+    <include><name>clover_29</name><uri>model://clover_03</uri><pose>0.8517 -21.7512 0 0 0 5.2447</pose><static>true</static></include>
+    <include><name>clover_30</name><uri>model://clover_04</uri><pose>-24.6018 4.9214 0 0 0 2.4101</pose><static>true</static></include>
+    <include><name>clover_31</name><uri>model://clover_05</uri><pose>0.7911 36.4153 0 0 0 5.4288</pose><static>true</static></include>
+    <include><name>clover_32</name><uri>model://clover_03</uri><pose>26.1768 34.0236 0 0 0 2.1355</pose><static>true</static></include>
+    <include><name>clover_33</name><uri>model://clover_05</uri><pose>-22.3514 -47.7537 0 0 0 4.5619</pose><static>true</static></include>
+    <include><name>clover_34</name><uri>model://clover_05</uri><pose>7.6726 15.3543 0 0 0 5.4366</pose><static>true</static></include>
+    <include><name>clover_35</name><uri>model://clover_04</uri><pose>3.7037 -14.8681 0 0 0 3.4678</pose><static>true</static></include>
+    <include><name>clover_36</name><uri>model://clover_05</uri><pose>-11.7878 41.5538 0 0 0 5.4639</pose><static>true</static></include>
+    <include><name>clover_37</name><uri>model://clover_02</uri><pose>6.8926 -25.5780 0 0 0 4.8729</pose><static>true</static></include>
+    <include><name>clover_38</name><uri>model://clover_01</uri><pose>-17.4551 -2.5943 0 0 0 5.7393</pose><static>true</static></include>
+    <include><name>clover_39</name><uri>model://clover_04</uri><pose>-10.9364 15.7141 0 0 0 5.1569</pose><static>true</static></include>
+    <include><name>hedge_0</name><uri>model://hedge_01</uri><pose>-0.4484 -44.4461 0 0 0 3.1560</pose><static>true</static></include>
+    <include><name>hedge_1</name><uri>model://hedge_01</uri><pose>35.4912 35.9223 0 0 0 2.7665</pose><static>true</static></include>
+    <include><name>hedge_2</name><uri>model://hedge_01</uri><pose>-46.5266 -34.1611 0 0 0 5.4722</pose><static>true</static></include>
+    <include><name>hedge_3</name><uri>model://hedge_01</uri><pose>-40.8165 27.0264 0 0 0 1.6652</pose><static>true</static></include>
+    <include><name>hedge_4</name><uri>model://hedge_01</uri><pose>14.3843 33.7695 0 0 0 5.3554</pose><static>true</static></include>
+    <include><name>hedge_5</name><uri>model://hedge_01</uri><pose>43.5974 12.1727 0 0 0 5.5759</pose><static>true</static></include>
+    <include><name>hedge_6</name><uri>model://hedge_01</uri><pose>35.7488 -44.5537 0 0 0 0.4299</pose><static>true</static></include>
+    <include><name>hedge_7</name><uri>model://hedge_01</uri><pose>47.7529 23.6896 0 0 0 2.7267</pose><static>true</static></include>
+    <include><name>hedge_8</name><uri>model://hedge_01</uri><pose>24.9955 19.5735 0 0 0 0.6315</pose><static>true</static></include>
+    <include><name>hedge_9</name><uri>model://hedge_01</uri><pose>18.6241 38.7287 0 0 0 0.2890</pose><static>true</static></include>
+    <include><name>hedge_10</name><uri>model://hedge_01</uri><pose>-19.8367 -12.0153 0 0 0 0.9146</pose><static>true</static></include>
+    <include><name>hedge_11</name><uri>model://hedge_01</uri><pose>6.3291 28.0819 0 0 0 1.0680</pose><static>true</static></include>
+    <include><name>hedge_12</name><uri>model://hedge_01</uri><pose>10.5112 -11.2757 0 0 0 4.2923</pose><static>true</static></include>
+    <include><name>hedge_13</name><uri>model://hedge_01</uri><pose>39.6316 -34.2607 0 0 0 2.8975</pose><static>true</static></include>
+    <include><name>hedge_14</name><uri>model://hedge_01</uri><pose>-3.8812 16.0167 0 0 0 5.6480</pose><static>true</static></include>
+    <!-- ============ Perimeter walls ============ -->
+    <include><name>wall_s_0</name><uri>model://cmu_grey_wall</uri><pose>-48.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_1</name><uri>model://cmu_grey_wall</uri><pose>-40.75 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_2</name><uri>model://cmu_grey_wall</uri><pose>-33.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_3</name><uri>model://cmu_grey_wall</uri><pose>-25.75 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_4</name><uri>model://cmu_grey_wall</uri><pose>-18.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_5</name><uri>model://cmu_grey_wall</uri><pose>-10.75 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_6</name><uri>model://cmu_grey_wall</uri><pose>-3.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_7</name><uri>model://cmu_grey_wall</uri><pose>4.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_8</name><uri>model://cmu_grey_wall</uri><pose>11.75 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_9</name><uri>model://cmu_grey_wall</uri><pose>19.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_10</name><uri>model://cmu_grey_wall</uri><pose>26.75 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_11</name><uri>model://cmu_grey_wall</uri><pose>34.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_12</name><uri>model://cmu_grey_wall</uri><pose>41.75 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_s_13</name><uri>model://cmu_grey_wall</uri><pose>49.25 -52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_0</name><uri>model://cmu_grey_wall</uri><pose>-48.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_1</name><uri>model://cmu_grey_wall</uri><pose>-40.75 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_2</name><uri>model://cmu_grey_wall</uri><pose>-33.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_3</name><uri>model://cmu_grey_wall</uri><pose>-25.75 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_4</name><uri>model://cmu_grey_wall</uri><pose>-18.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_5</name><uri>model://cmu_grey_wall</uri><pose>-10.75 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_6</name><uri>model://cmu_grey_wall</uri><pose>-3.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_7</name><uri>model://cmu_grey_wall</uri><pose>4.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_8</name><uri>model://cmu_grey_wall</uri><pose>11.75 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_9</name><uri>model://cmu_grey_wall</uri><pose>19.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_10</name><uri>model://cmu_grey_wall</uri><pose>26.75 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_11</name><uri>model://cmu_grey_wall</uri><pose>34.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_12</name><uri>model://cmu_grey_wall</uri><pose>41.75 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_n_13</name><uri>model://cmu_grey_wall</uri><pose>49.25 52.0 0 0 0 0</pose><static>true</static></include>
+    <include><name>wall_w_0</name><uri>model://cmu_grey_wall</uri><pose>-52.0 -48.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_1</name><uri>model://cmu_grey_wall</uri><pose>-52.0 -40.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_2</name><uri>model://cmu_grey_wall</uri><pose>-52.0 -33.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_3</name><uri>model://cmu_grey_wall</uri><pose>-52.0 -25.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_4</name><uri>model://cmu_grey_wall</uri><pose>-52.0 -18.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_5</name><uri>model://cmu_grey_wall</uri><pose>-52.0 -10.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_6</name><uri>model://cmu_grey_wall</uri><pose>-52.0 -3.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_7</name><uri>model://cmu_grey_wall</uri><pose>-52.0 4.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_8</name><uri>model://cmu_grey_wall</uri><pose>-52.0 11.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_9</name><uri>model://cmu_grey_wall</uri><pose>-52.0 19.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_10</name><uri>model://cmu_grey_wall</uri><pose>-52.0 26.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_11</name><uri>model://cmu_grey_wall</uri><pose>-52.0 34.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_12</name><uri>model://cmu_grey_wall</uri><pose>-52.0 41.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_w_13</name><uri>model://cmu_grey_wall</uri><pose>-52.0 49.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_0</name><uri>model://cmu_grey_wall</uri><pose>52.0 -48.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_1</name><uri>model://cmu_grey_wall</uri><pose>52.0 -40.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_2</name><uri>model://cmu_grey_wall</uri><pose>52.0 -33.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_3</name><uri>model://cmu_grey_wall</uri><pose>52.0 -25.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_4</name><uri>model://cmu_grey_wall</uri><pose>52.0 -18.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_5</name><uri>model://cmu_grey_wall</uri><pose>52.0 -10.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_6</name><uri>model://cmu_grey_wall</uri><pose>52.0 -3.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_7</name><uri>model://cmu_grey_wall</uri><pose>52.0 4.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_8</name><uri>model://cmu_grey_wall</uri><pose>52.0 11.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_9</name><uri>model://cmu_grey_wall</uri><pose>52.0 19.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_10</name><uri>model://cmu_grey_wall</uri><pose>52.0 26.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_11</name><uri>model://cmu_grey_wall</uri><pose>52.0 34.25 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_12</name><uri>model://cmu_grey_wall</uri><pose>52.0 41.75 0 0 0 1.5708</pose><static>true</static></include>
+    <include><name>wall_e_13</name><uri>model://cmu_grey_wall</uri><pose>52.0 49.25 0 0 0 1.5708</pose><static>true</static></include>
+    <light name="sun" type="directional">
+      <pose>0 0 45 0 -0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>0.5</intensity>
+      <direction>-0.5 0.1 -0.9</direction>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <linear>0.01</linear>
+        <constant>0.9</constant>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+  </world>
+</sdf>
