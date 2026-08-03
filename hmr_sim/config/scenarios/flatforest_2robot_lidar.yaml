@@ -1,0 +1,23 @@
+# Two-robot LIDAR-ONLY scenario for the flatforest world.
+#
+# Both robots use COSTAR_HUSKY_SENSOR_CONFIG_LIDAR (VLP-16-style gpu_lidar
+# 1800x16 @ 10 Hz + IMU, no rendering cameras), overriding the registry's
+# default rgbd+segmentation models for atlas/bestla. Features list drives the
+# ros_gz bridge: each robot gets /<name>/velodyne_points (frame <name>/velodyne,
+# mounted on base_link at x=0.0012 z=0.716), /<name>/imu/data,
+# /<name>/odom_ground_truth and /<name>/cmd_vel.
+world: flatforest
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false
