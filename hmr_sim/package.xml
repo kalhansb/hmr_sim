@@ -21,6 +21,11 @@
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
 
+  <!-- ROS2 message-level comms emulator -->
+  <depend>nav_msgs</depend>
+  <depend>tinyxml2_vendor</depend>
+  <depend>tinyxml2</depend>
+
   <export>
     <build_type>ament_cmake</build_type>
     <!-- Not sure if the following lines are ROS1 dependent -->

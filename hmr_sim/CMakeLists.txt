@@ -83,6 +83,23 @@ ament_target_dependencies(hmr_comms_relay_node
   std_msgs
 )
 
+# ROS2 message-level comms emulator (link model + relay, no Gazebo dependency)
+find_package(nav_msgs REQUIRED)
+find_package(tinyxml2_vendor REQUIRED)
+find_package(TinyXML2 REQUIRED)
+
+add_executable(hmr_comms_sim_node
+  src/hmr_comms_sim_node.cpp
+)
+ament_target_dependencies(hmr_comms_sim_node
+  rclcpp
+  std_msgs
+  nav_msgs
+)
+target_link_libraries(hmr_comms_sim_node
+  tinyxml2::tinyxml2
+)
+
 # ROS2 <-> GZ generic binary bridge node
 add_executable(ros2_gz_generic_bridge_node
   src/ros2_gz_generic_bridge_node.cpp
@@ -100,6 +117,7 @@ install(TARGETS
   WorldQuerySystem
   TrajectoryRecorder
   hmr_comms_relay_node
+  hmr_comms_sim_node
   ros2_gz_generic_bridge_node
   DESTINATION lib/${PROJECT_NAME}
 )

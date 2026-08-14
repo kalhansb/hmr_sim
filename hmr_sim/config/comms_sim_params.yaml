@@ -1,0 +1,59 @@
+# Parameters for hmr_comms_sim_node — the message-level wireless-link emulator.
+# robot_names, world_sdf and use_sim_time are normally injected by
+# comms_sim.launch.py (from the scenario yaml / world registry); anything here
+# can also be overridden per run with --ros-args -p.
+#
+# See docs/comms_sim.md for the model and the reliable/best-effort semantics.
+hmr_comms_sim:
+  ros__parameters:
+    # Where each robot's pose comes from; '{robot}' is replaced per robot.
+    # Any nav_msgs/Odometry source works — GT odom in sim, replayed odom from a bag.
+    pose_topic_pattern: "/{robot}/odom_ground_truth"
+
+    # Topics relayed with the "reliable" policy: never dropped, queued while the
+    # link is down and delivered late at the link's bandwidth. Use for the
+    # scovox delta stream — a silently dropped delta permanently holes the
+    # receiver's merged map, which would confound the map-merging experiments.
+    reliable_topics: ["scovox_node/scovox_bin"]
+
+    # Topics relayed with the "best-effort" policy: dropped when the link is
+    # down, when the shared channel is out of airtime, or by the per-message
+    # BER coin flip. Use for streams where the latest sample supersedes older
+    # ones (pointclouds, odometry). e.g. ["velodyne_points"]
+    best_effort_topics: []
+
+    # --- radio / propagation (forest model, IEEE 9260568) -------------------
+    tx_power_dbm: 30.0        # matches the old RobotNetworkConfig default
+    noise_floor_dbm: -101.0   # 802.11n
+    p0_db: 49.17              # path loss at 1 m
+    tree_attenuation_db: 11.98  # per tree crossing the Fresnel zone
+    tree_radius_m: 0.3
+    frequency_hz: 2.4e9
+    fade_sigma_db: 4.8        # shadow-fading std (stationary)
+    fade_alpha: 0.9           # AR(1) memory per link tick; higher = slower fading
+    tree_name_substring: "tree"  # world models whose name contains this count as trees
+
+    # --- link dynamics ------------------------------------------------------
+    link_rate_hz: 5.0         # link model tick; SNR hysteresis spans 8 ticks (1.6 s)
+    delay_ms: 2.5             # propagation+stack latency added to every delivery
+
+    # --- shared channel -----------------------------------------------------
+    # All links contend for one channel: airtime_capacity seconds of air per
+    # second. A message of B bytes on a link at R Mbps costs 8B/R seconds.
+    airtime_capacity: 1.0
+    airtime_burst_s: 0.1      # max accumulated idle airtime (burst allowance)
+    retx_cap: 4.0             # cap on the reliable retransmission cost factor
+
+    # --- reliable backlog bound --------------------------------------------
+    reliable_queue_max_bytes: 67108864  # 64 MiB per directional link
+
+    # rx publisher history depth. Must be deeper than any expected reconnect
+    # burst (backlog drains near-instantly for small messages): a reliable
+    # KeepLast publisher silently replaces unacked samples past its depth.
+    # Receivers should subscribe with a comparable depth.
+    rx_qos_depth: 100
+
+    # --- reproducibility ----------------------------------------------------
+    seed: 42                  # link fading is a pure function of (seed, tick)
+
+    stats_period_s: 10.0
