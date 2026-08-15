@@ -143,6 +143,23 @@ def generate_launch_description():
                 f"tx_power_dbm:= must be a number, got '{cli['tx_power_dbm']}'")
         print(f'--- comms_sim tx_power_dbm override: '
               f'{overrides["tx_power_dbm"]} dBm ---')
+    # Reliable-relay backlog cap. On overflow the node drops the OLDEST queued
+    # delta and never retransmits it, so the receiver's merged map is missing
+    # those voxels permanently. That is fatal to any experiment whose premise is
+    # "the backlog drains at contact" — the robot-known/team-observed gap can
+    # then never snap shut, and the receiver's unknown fraction is biased
+    # upwards for the rest of the run. It has to be settable per run because the
+    # required depth is the offered map-delta load times the longest outage, and
+    # both move with voxel resolution and tx_power_dbm.
+    if 'reliable_queue_max_bytes' in cli:
+        try:
+            overrides['reliable_queue_max_bytes'] = \
+                int(cli['reliable_queue_max_bytes'])
+        except ValueError:
+            raise ValueError('reliable_queue_max_bytes:= must be an integer, '
+                             f"got '{cli['reliable_queue_max_bytes']}'")
+        print(f'--- comms_sim reliable_queue_max_bytes override: '
+              f'{overrides["reliable_queue_max_bytes"]} bytes ---')
 
     return LaunchDescription([
         Node(
