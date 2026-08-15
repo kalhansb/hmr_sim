@@ -166,7 +166,47 @@ public:
       "best_effort_topics", std::vector<std::string>{});
 
     world_sdf_ = declare_parameter<std::string>("world_sdf", "");
-    tree_name_substring_ = ToLower(declare_parameter<std::string>("tree_name_substring", "tree"));
+    // A world may name its trees by species rather than by the word "tree"
+    // (flatforestv2 has 80 "Oak tree" models plus 8 "pine_*" includes), so the
+    // match is a set of substrings, ANY of which qualifies. A species missing
+    // from this list is transparent to the radio, which inflates the link budget
+    // rather than erroring — so LoadTreePositions() logs both the matched count
+    // and the names it rejected, and adding a world means reading that line.
+    // Defaults cover every tree species in the shipped worlds: "pine" alone does
+    // NOT match `pinus_pinaster` (20 per forest world), hence "pinus".
+    // To match nothing, write [""] — NOT []. An empty yaml/CLI list has no
+    // inferable element type and arrives NOT_SET, which aborts the node during
+    // base-class construction, before any code here runs. That is generic rclcpp
+    // behaviour for every list parameter (`reliable_topics` included), not a
+    // property of this one; main() turns the abort into a readable message.
+    tree_name_substrings_ = declare_parameter<std::vector<std::string>>(
+      "tree_name_substrings", std::vector<std::string>{
+        "tree", "pine", "pinus", "oak", "euca", "ulex"});
+    for (auto & s : tree_name_substrings_) {
+      s = ToLower(s);
+    }
+    tree_name_substrings_.erase(
+      std::remove(tree_name_substrings_.begin(), tree_name_substrings_.end(), std::string{}),
+      tree_name_substrings_.end());
+    // Superseded scalar. Replaces (not extends) the list, so a world config that
+    // still sets it keeps its own species set rather than silently gaining the
+    // new defaults. Not bit-for-bit the old behaviour even so: include URIs are
+    // now tested alongside instance names, so legacy "tree" picks up flatforest's
+    // pines anyway (their URI is model://cmu_pine_tree) — 88, where it used to
+    // find 80. That widening is the point of this change, not a regression.
+    // (Declared after the list so a NOT_SET list above cannot skip it.)
+    const auto legacy_substring = declare_parameter<std::string>("tree_name_substring", "");
+    if (!legacy_substring.empty()) {
+      RCLCPP_WARN(get_logger(),
+        "tree_name_substring is deprecated — use tree_name_substrings (a list). "
+        "Overriding the list with the single legacy value '%s'.", legacy_substring.c_str());
+      tree_name_substrings_ = {ToLower(legacy_substring)};
+    }
+    if (tree_name_substrings_.empty()) {
+      RCLCPP_WARN(get_logger(),
+        "tree_name_substrings is empty — no model will match, so the link model "
+        "degenerates to free space with fading and no obstacle attenuation.");
+    }
     tree_radius_m_ = declare_parameter<double>("tree_radius_m", 0.3);
     frequency_hz_ = declare_parameter<double>("frequency_hz", 2.4e9);
     tx_power_dbm_ = declare_parameter<double>("tx_power_dbm", 30.0);
@@ -343,6 +383,20 @@ private:
   size_t DirKey(size_t s, size_t r) const { return s * robot_names_.size() + r; }
 
   // ---- tree extraction ----------------------------------------------------
+  bool LooksLikeTree(const char * text) const
+  {
+    if (!text) {
+      return false;
+    }
+    const std::string low = ToLower(text);
+    for (const auto & sub : tree_name_substrings_) {
+      if (low.find(sub) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void LoadTreePositions()
   {
     if (world_sdf_.empty()) {
@@ -363,44 +417,86 @@ private:
         world_sdf_.c_str());
       return;
     }
-    auto read_pose = [](tinyxml2::XMLElement * elem, Vec3 & out) {
+    auto read_pose = [this](tinyxml2::XMLElement * elem, const char * what, Vec3 & out) {
       auto * pose = elem->FirstChildElement("pose");
       if (!pose || !pose->GetText()) {
-        return true;  // model at origin is legal SDF
+        // Legal SDF — but a tree silently placed at the origin sits on the spawn
+        // point and attenuates every link, so say so rather than absorbing it.
+        RCLCPP_WARN(get_logger(),
+          "Tree '%s' has no <pose>; placing it at the origin per SDF defaults. "
+          "If that is not where it belongs, the world needs an explicit pose.",
+          what ? what : "(unnamed)");
+        return true;
       }
       std::istringstream ss(pose->GetText());
       return static_cast<bool>(ss >> out.x >> out.y >> out.z);
+    };
+    // Distinct names that did NOT match, with instance counts, so a world whose
+    // species this build cannot see is visible at startup instead of silently
+    // costing attenuation. Trailing instance digits are folded away.
+    std::map<std::string, int> rejected;
+    auto note_rejected = [&rejected](const char * raw) {
+      std::string n = raw ? raw : "(unnamed)";
+      while (!n.empty() && (std::isdigit(static_cast<unsigned char>(n.back())) ||
+        n.back() == '_' || n.back() == ' '))
+      {
+        n.pop_back();
+      }
+      ++rejected[n.empty() ? "(unnamed)" : n];
     };
     for (auto * model = world->FirstChildElement("model"); model;
          model = model->NextSiblingElement("model"))
     {
       const char * name = model->Attribute("name");
-      if (!name || ToLower(name).find(tree_name_substring_) == std::string::npos) {
+      if (!LooksLikeTree(name)) {
+        note_rejected(name);
         continue;
       }
       Vec3 p;
-      if (read_pose(model, p)) {
+      if (read_pose(model, name, p)) {
         trees_.push_back(p);
       }
     }
-    // Worlds that <include> tree models with the pose in the include tag.
+    // Worlds that <include> tree models with the pose in the include tag. The
+    // instance name and the model URI are BOTH tested — flatforestv2's pines are
+    // <name>pine_N</name> under <uri>model://cmu_pine_tree</uri>, and a world
+    // that leaves an include unnamed still identifies its species via the URI.
     for (auto * inc = world->FirstChildElement("include"); inc;
          inc = inc->NextSiblingElement("include"))
     {
       auto * name_elem = inc->FirstChildElement("name");
       auto * uri_elem = inc->FirstChildElement("uri");
-      const char * name = name_elem && name_elem->GetText() ? name_elem->GetText()
-        : (uri_elem ? uri_elem->GetText() : nullptr);
-      if (!name || ToLower(name).find(tree_name_substring_) == std::string::npos) {
+      const char * iname = name_elem ? name_elem->GetText() : nullptr;
+      const char * iuri = uri_elem ? uri_elem->GetText() : nullptr;
+      if (!LooksLikeTree(iname) && !LooksLikeTree(iuri)) {
+        note_rejected(iname ? iname : iuri);
         continue;
       }
       Vec3 p;
-      if (read_pose(inc, p)) {
+      if (read_pose(inc, iname ? iname : iuri, p)) {
         trees_.push_back(p);
       }
     }
-    RCLCPP_INFO(get_logger(), "Loaded %zu tree positions (name contains '%s') from %s",
-      trees_.size(), tree_name_substring_.c_str(), world_sdf_.c_str());
+    std::string subs;
+    for (const auto & s : tree_name_substrings_) {
+      subs += (subs.empty() ? "'" : ", '") + s + "'";
+    }
+    RCLCPP_INFO(get_logger(),
+      "Loaded %zu tree positions (name or include URI contains any of [%s]) from %s",
+      trees_.size(), subs.c_str(), world_sdf_.c_str());
+    std::string rej;
+    int shown = 0;
+    for (const auto & kv : rejected) {
+      if (++shown > 12) {
+        rej += ", …";
+        break;
+      }
+      rej += (rej.empty() ? "" : ", ") + kv.first + "×" + std::to_string(kv.second);
+    }
+    RCLCPP_INFO(get_logger(),
+      "Not counted as trees (transparent to the radio): %s. Any TREE species in "
+      "that list means this world needs it added to tree_name_substrings.",
+      rej.empty() ? "(nothing)" : rej.c_str());
   }
 
   // ---- link model tick ----------------------------------------------------
@@ -779,7 +875,7 @@ private:
   std::vector<std::string> robot_names_;
   std::string pose_topic_pattern_;
   std::string world_sdf_;
-  std::string tree_name_substring_;
+  std::vector<std::string> tree_name_substrings_;
   double tree_radius_m_, frequency_hz_, tx_power_dbm_, noise_floor_dbm_;
   double p0_db_, tree_attenuation_db_, fade_sigma_db_, fade_alpha_;
   double link_rate_hz_, delay_ms_, airtime_capacity_, airtime_burst_s_, retx_cap_;
@@ -825,9 +921,25 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
+  std::shared_ptr<HmrCommsSimNode> node;
+  try {
+    node = std::make_shared<HmrCommsSimNode>();
+  } catch (const rclcpp::exceptions::InvalidParameterValueException & e) {
+    // Raised from the Node base constructor while ingesting overrides, so no
+    // catch inside the node body can see it. Overwhelmingly this is an empty
+    // list written as `[]`: yaml and `--ros-args -p` cannot infer an element
+    // type, the value arrives NOT_SET, and the default abort is an opaque
+    // std::terminate that names neither the cause nor the fix.
+    RCLCPP_FATAL(rclcpp::get_logger("hmr_comms_sim"),
+      "Bad parameter override: %s. If you wrote an empty list `[]`, that has no "
+      "inferable element type — write [\"\"] for an empty list of strings.",
+      e.what());
+    rclcpp::shutdown();
+    return 1;
+  }
   // Single-threaded spin is load-bearing: all state is unlocked because every
   // callback (poses, relayed messages, timers) runs on this one executor thread.
-  rclcpp::spin(std::make_shared<HmrCommsSimNode>());
+  rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
 }

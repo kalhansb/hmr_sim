@@ -20,7 +20,23 @@ hmr_comms_sim:
     # down, when the shared channel is out of airtime, or by the per-message
     # BER coin flip. Use for streams where the latest sample supersedes older
     # ones (pointclouds, odometry). e.g. ["velodyne_points"]
-    best_effort_topics: []
+    #
+    # exploration/intents is the planner's coordination beacon, and it is what
+    # makes the reconnection experiment work at all: a peer reading as MISSING
+    # is the trigger for every reconnect manoeuvre, so unless this stream is
+    # gated the manoeuvres never fire no matter what the radio model says. It
+    # requires the planner's split intent wiring — coord_intent_pub_topic:
+    # "exploration/intents" (relative, so it resolves to /<robot>/...) and
+    # coord_intent_sub_topics listing the relayed copies. Left on the default
+    # shared /exploration/intents bus, there is no per-robot source topic here
+    # to discover and the relay silently never forms.
+    #
+    # best-effort, NOT reliable, and the distinction is load-bearing: a queued
+    # intent delivered late on reconnect would be stamped with LOCAL receipt
+    # time by the receiver (last_contact_), so a minute-old claim would land
+    # looking freshly heard — resetting the peer's TTL and aborting the very
+    # manoeuvre under test. A stale beacon is worse than a dropped one.
+    best_effort_topics: ["exploration/intents"]
 
     # --- radio / propagation (forest model, IEEE 9260568) -------------------
     tx_power_dbm: 30.0        # matches the old RobotNetworkConfig default
@@ -31,7 +47,27 @@ hmr_comms_sim:
     frequency_hz: 2.4e9
     fade_sigma_db: 4.8        # shadow-fading std (stationary)
     fade_alpha: 0.9           # AR(1) memory per link tick; higher = slower fading
-    tree_name_substring: "tree"  # world models whose name contains this count as trees
+    # A world model (or an include's instance name / model URI) counts as a tree
+    # if it contains ANY of these, case-insensitively. Species not listed here
+    # are transparent to the radio, which shows up as an optimistically HIGH link
+    # budget, not as an error — so read the two lines the node logs at startup
+    # ("Loaded N tree positions" and "Not counted as trees: ...") when adding a
+    # world. flatforestv2: 80 oak models + 8 "pine_*" includes = 88.
+    #   "pine" does NOT match `pinus_pinaster` (20 per forest world) — hence the
+    #   separate "pinus". "euca"/"ulex" cover the other shipped forest worlds.
+    #   Shrubs/bushes are deliberately excluded: tree_attenuation_db is a trunk
+    #   figure and a shrub is not a trunk.
+    # All species share the single tree_radius_m/tree_attenuation_db above; the
+    # models collide as meshes with no analytic trunk primitive, so there is no
+    # per-species radius to read out of the world.
+    # To match NOTHING write [""], never [] — an empty list has no inferable
+    # element type, arrives NOT_SET and aborts the node (generic rclcpp
+    # behaviour for every list param here, e.g. reliable_topics).
+    tree_name_substrings: ["tree", "pine", "pinus", "oak", "euca", "ulex"]
+    # Superseded scalar. If set non-empty it REPLACES the list above and warns.
+    # It is not a bit-for-bit revert: include URIs are now matched too, so even
+    # the legacy "tree" finds the pines via model://cmu_pine_tree.
+    # tree_name_substring: "tree"
 
     # --- link dynamics ------------------------------------------------------
     link_rate_hz: 5.0         # link model tick; SNR hysteresis spans 8 ticks (1.6 s)
@@ -51,7 +87,29 @@ hmr_comms_sim:
     # burst (backlog drains near-instantly for small messages): a reliable
     # KeepLast publisher silently replaces unacked samples past its depth.
     # Receivers should subscribe with a comparable depth.
-    rx_qos_depth: 100
+    #
+    # Raised 100 -> 500 for the reconnection experiment. On reconnect the
+    # reliable backlog is released to the delivery timer in ONE pass and
+    # republished far faster than a subscriber drains it, so the depth has to
+    # cover a whole outage's worth of messages, not a steady-state second.
+    #
+    # Only the scovox delta stream is at stake here. Intents are in
+    # best_effort_topics, so they are dropped while the link is down and never
+    # enter the reliable queue at all — the burst on reconnect is map deltas
+    # only. Samples past the depth are dropped SILENTLY: drop_overflow only sees
+    # the pre-relay queue, so the loss would land as missing voxels in the
+    # merged map with no statistic anywhere saying so.
+    #
+    # This value is applied to BOTH the emulator's source subscription and its
+    # rx publisher, so the cost is subscriber-side history plus publisher-side
+    # memory held until acknowledgement, and it is unbounded in bytes (unlike
+    # reliable_queue_max_bytes, which caps the pre-relay queue).
+    #
+    # Depth is only as good as the SHALLOWEST end of the chain. The consumer of
+    # the relayed map stream is dscovox_node, whose subscription depth is set by
+    # its own scovox_bin_qos_depth parameter — raise that to match, or the burst
+    # is discarded at the reader instead and nothing here can tell.
+    rx_qos_depth: 500
 
     # --- reproducibility ----------------------------------------------------
     seed: 42                  # link fading is a pure function of (seed, tick)

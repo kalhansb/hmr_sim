@@ -23,9 +23,21 @@ world SDF (trees) ─────►   distance + trees → SNR → {connected,�
 ## Link model (per robot pair, at `link_rate_hz`, default 5 Hz)
 
 1. **Distance** between the two poses (3D).
-2. **Trees on the link**: world models whose name contains
-   `tree_name_substring` and whose trunk lies within
+2. **Trees on the link**: world models whose name — or, for an `<include>`, whose
+   instance name or model URI — contains any substring in `tree_name_substrings`
+   (default `["tree", "pine"]`, case-insensitive), and whose trunk lies within
    `tree_radius_m + FresnelZoneRadius(d, frequency_hz)` of the 2D line segment.
+   A species absent from that list is transparent to the radio and inflates the
+   link budget, so the node logs both `Loaded N tree positions` and
+   `Not counted as trees: …` at startup — check the second line when adding a
+   world. In `flatforestv2` the count is 80 oak `<model>`s + 8 `pine_*`
+   `<include>`s = 88. Note `"pine"` does **not** match `pinus_pinaster` (20 per
+   forest world), which is why `"pinus"` is a separate default.
+
+   Perimeter walls (`cmu_grey_wall`) are deliberately not counted, and this costs
+   nothing: they form a closed square at ±52 m while the sim ROI is ±50 m, so by
+   convexity no link between two in-ROI points can cross one. Shrubs are excluded
+   on the different ground that `tree_attenuation_db` is a trunk figure.
 3. **Path loss** (forest model, [IEEE 9260568](https://ieeexplore.ieee.org/document/9260568)):
    `P0 + 20·log10(d) + N_trees·Lv + fade`, where `fade` is an AR(1) shadow-fading
    process (stationary std `fade_sigma_db`, memory `fade_alpha`) — it evolves
@@ -126,5 +138,7 @@ file injects `robot_names` and `world_sdf` on top.
 [`scripts/comms_smoke_test.sh`](../scripts/comms_smoke_test.sh) is a scripted
 end-to-end check: relay of both policies, hard link gate at extreme range,
 backlog delivered on reconnect, and tree parsing against `flatforestv2.sdf`
-(80/80 models). It runs two fake robots on wall clock with `ros2 topic pub`
+(asserts 88 = 80 oak `<model>`s + 8 pine `<include>`s, both counts derived from
+the world file rather than hardcoded; T8 exits non-zero on mismatch). It runs
+two fake robots on wall clock with `ros2 topic pub`
 poses on a random DDS domain — no Gazebo needed.

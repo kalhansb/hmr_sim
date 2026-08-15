@@ -17,9 +17,15 @@ Reuses robot_sim.launch.py's conventions so a run is described the same way:
 Optional:
   params_file:=/path/to/params.yaml   (default: share/config/comms_sim_params.yaml)
   use_sim_time:=false                 (default: true)
+  seed:=7                             (default: the params file's value)
+                                      pins the fading trace only — the planner
+                                      has no RNG and sim sensor noise is unseeded
+  tx_power_dbm:=24.0                  (default: the params file's value, 30.0)
+                                      the experiment's severity dial: lower =
+                                      more time disconnected. See plan §4.
 
-Radio/relay parameters live in the params file; robot_names and world_sdf
-resolved here are injected on top of it.
+Radio/relay parameters live in the params file; robot_names, world_sdf, seed and
+tx_power_dbm resolved here are injected on top of it.
 """
 
 import os
@@ -105,19 +111,45 @@ def generate_launch_description():
     params_file = cli.get(
         'params_file', os.path.join(share_dir, 'config', 'comms_sim_params.yaml'))
 
+    # Fading is a pure function of (seed, tick), so the seed IS the run's link
+    # realisation. Paired-seed designs need to vary it per run while holding
+    # everything else fixed, and editing the shared params file per run makes
+    # the arm and its pairing impossible to reconstruct afterwards. Absent, the
+    # params file's value stands.
+    overrides = {
+        'robot_names': robot_names,
+        'world_sdf': world_sdf,
+        'use_sim_time': as_bool(cli.get('use_sim_time'), default=True),
+    }
+    if 'seed' in cli:
+        try:
+            overrides['seed'] = int(cli['seed'])
+        except ValueError:
+            raise ValueError(
+                f"seed:= must be an integer, got '{cli['seed']}'")
+        print(f'--- comms_sim seed override: {overrides["seed"]} ---')
+    # tx_power_dbm is THE severity dial for the link model: everything
+    # downstream (SNR -> BER -> bandwidth tier -> connected) is monotone in it,
+    # so it is what a calibration sweep varies to place the outage rate where
+    # the experiment needs it. Exposed here so a run can record and reproduce
+    # its severity from the command line instead of by editing the installed
+    # params yaml, which leaves no trace in the run directory and silently
+    # re-scopes every run that follows.
+    if 'tx_power_dbm' in cli:
+        try:
+            overrides['tx_power_dbm'] = float(cli['tx_power_dbm'])
+        except ValueError:
+            raise ValueError(
+                f"tx_power_dbm:= must be a number, got '{cli['tx_power_dbm']}'")
+        print(f'--- comms_sim tx_power_dbm override: '
+              f'{overrides["tx_power_dbm"]} dBm ---')
+
     return LaunchDescription([
         Node(
             package='hmr_sim',
             executable='hmr_comms_sim_node',
             name='hmr_comms_sim',
             output='screen',
-            parameters=[
-                params_file,
-                {
-                    'robot_names': robot_names,
-                    'world_sdf': world_sdf,
-                    'use_sim_time': as_bool(cli.get('use_sim_time'), default=True),
-                },
-            ],
+            parameters=[params_file, overrides],
         ),
     ])

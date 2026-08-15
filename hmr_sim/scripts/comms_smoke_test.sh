@@ -109,7 +109,24 @@ TREE_PID=$!
 sleep 4
 kill $TREE_PID 2>/dev/null
 pkill -f 'lib/hmr_sim/hmr_comms_sim_nod[e]' 2>/dev/null
-echo "=== T8 tree parse (expect ~130 trees) ==="
-grep -E "Loaded|tree" "$OUT/node_trees.log" | head -3
-echo "actual Oak tree models in world: $(grep -c '<model name="Oak tree' "$WORLD")"
+# Ground truth is derived from the world file, not hardcoded, so this asserts
+# the PARSER rather than a number someone has to remember to update: 80 oaks as
+# top-level <model>s plus 8 pines carried as <include>s of model://cmu_pine_tree.
+# The pines are the regression guard — they were silently uncounted until
+# 2026-08-15 because the matcher tested only the include's instance name
+# ("pine_N"), which contains no configured substring.
+T8_OAKS=$(grep -c '<model name="Oak tree' "$WORLD")
+T8_PINES=$(grep -c 'model://cmu_pine_tree' "$WORLD")
+T8_EXPECT=$((T8_OAKS + T8_PINES))
+T8_GOT=$(sed -n 's/.*Loaded \([0-9]\+\) tree positions.*/\1/p' "$OUT/node_trees.log" | head -1)
+echo "=== T8 tree parse (expect $T8_EXPECT = $T8_OAKS oak + $T8_PINES pine) ==="
+grep -E "Loaded|Not counted" "$OUT/node_trees.log" | head -3
+if [ "$T8_GOT" = "$T8_EXPECT" ]; then
+  echo "T8 PASS: parsed $T8_GOT trees"
+else
+  echo "T8 FAIL: parsed '${T8_GOT:-<no Loaded line>}', expected $T8_EXPECT"
+  T8_FAILED=1
+fi
 echo "=== DONE ==="
+[ -n "${T8_FAILED:-}" ] && exit 1
+exit 0
