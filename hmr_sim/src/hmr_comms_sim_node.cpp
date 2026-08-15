@@ -28,11 +28,13 @@
 //                   while the link is up and airtime is available; a down link
 //                   grows a backlog that is delivered late, never lost (bounded
 //                   by reliable_queue_max_bytes, oldest dropped + warned).
-//                   Airtime cost is scaled by expected retransmissions
-//                   min(1/(1-PER_msg), retx_cap): bad links pay more per byte.
-//     best_effort — dropped when the link is down, when the shared channel has
-//                   no airtime, or by a coin flip with the message's actual
-//                   loss probability 1-(1-BER)^bits (no assumed packet size).
+//                   Airtime cost is bits / the CURRENT TIER: a bad link is slow.
+//     best_effort — dropped when the link is down or when the shared channel has
+//                   no airtime; otherwise delivered, less residual_pdr.
+//   Both policies take delivery from the bandwidth state machine alone, as in
+//   HMRNetSim.cc: gear 0 means nothing gets through, any other gear means
+//   essentially everything gets through at that gear's speed. ber/per are
+//   published diagnostics and MUST NOT gate delivery — see NextBandwidth.
 //   Delivery is deferred by transmission time + delay_ms via a timer heap.
 //
 // Diagnostics:
@@ -128,17 +130,22 @@ double RayleighQam64Ber(double power_w, double noise_w)
          (1.0 / 24.0) * term(169.0);
 }
 
-// Probability the whole serialized message survives, from BER and its true size.
-double MessageSuccessProbability(double ber, size_t bits)
-{
-  if (ber <= 0.0) {
-    return 1.0;
-  }
-  if (ber >= 1.0) {
-    return 0.0;
-  }
-  return std::exp(static_cast<double>(bits) * std::log1p(-ber));
-}
+// Deliberately removed: MessageSuccessProbability(ber, bits).
+//
+// It applied the BER above to a WHOLE serialized message, and its result was
+// used to drop best-effort messages and to inflate reliable airtime. Both were
+// wrong. The BER functions hardcode spectral_efficiency = 72e6/20e6 — 64-QAM at
+// the TOP rate — regardless of the tier NextBandwidth actually selected, so a
+// link that had correctly downshifted to 7.2 Mbps was charged the error rate of
+// a gear it was not in: slow AND lossy for one weak signal, which is the
+// opposite of what rate adaptation is for. Measured at tx_power_dbm=-14, median
+// BER on CONNECTED samples was 0.116, so a 200-byte beacon survived with
+// probability ~1e-70: robots exchanged 3544 intent beacons and 7 arrived, peer
+// records never formed, and the pursuit manoeuvre could never arm.
+// HMRNetSim.cc, which this node was ported from, never did this — it gates on
+// the SNR>=2 dB boundary (PDR 1.0 below, 1e-8 above) and publishes ber/per as
+// diagnostics only. Do not reintroduce message-level BER gating without also
+// making BER a function of the selected tier.
 
 std::string ToLower(std::string s)
 {
@@ -219,7 +226,9 @@ public:
     delay_ms_ = declare_parameter<double>("delay_ms", 2.5);
     airtime_capacity_ = declare_parameter<double>("airtime_capacity", 1.0);
     airtime_burst_s_ = declare_parameter<double>("airtime_burst_s", 0.1);
-    retx_cap_ = declare_parameter<double>("retx_cap", 4.0);
+    // Residual loss on a link the state machine reports as up, matching
+    // HMRNetSim.cc's PDR of 1e-8 above the SNR>=2 dB boundary.
+    residual_pdr_ = declare_parameter<double>("residual_pdr", 1e-8);
     reliable_queue_max_bytes_ = static_cast<size_t>(
       declare_parameter<int64_t>("reliable_queue_max_bytes", 64LL * 1024 * 1024));
     rx_qos_depth_ = static_cast<size_t>(declare_parameter<int64_t>("rx_qos_depth", 100));
@@ -718,8 +727,13 @@ private:
         continue;
       }
       const size_t bits = bytes * 8;
-      const double p_ok = MessageSuccessProbability(ps.ber, bits);
-      if (uniform_(drop_rng_) > p_ok) {
+      // Delivery is the bandwidth state machine's call, as in HMRNetSim.cc:
+      // above the SNR>=2 dB boundary (i.e. ps.connected, checked above) the
+      // reference plugin delivers with PDR=1e-8, and its ber/per exist only to
+      // be published. Link quality reaches the experiment through the TIER —
+      // a weak link is slow, which surfaces as airtime pressure and backlog in
+      // cost_s below — not as vanished messages.
+      if (uniform_(drop_rng_) < residual_pdr_) {
         ++stats.drop_ber;
         continue;
       }
@@ -750,9 +764,13 @@ private:
       }
       QueuedMsg & front = queue.front();
       const size_t bits = front.bytes * 8;
-      const double p_ok = MessageSuccessProbability(ps.ber, bits);
-      const double retx = std::min(retx_cap_, 1.0 / std::max(p_ok, 1e-9));
-      const double cost_s = bits / (ps.bandwidth_mbps * 1e6) * retx;
+      // The tier is the whole quality model, so a byte costs bits/tier and
+      // nothing more. The BER-derived retransmission multiplier that used to
+      // scale this was never physical: it was capped at retx_cap while the
+      // true expected number of transmissions at the BER this node computes is
+      // astronomically larger, and that cap is the only reason 60 kB map
+      // deltas flowed at all on a link where 200-byte beacons were dying.
+      const double cost_s = bits / (ps.bandwidth_mbps * 1e6);
       airtime_tokens_ -= cost_s;
       ScheduleDelivery(front.pub, front.msg, cost_s);
       ++stats.relayed;
@@ -878,7 +896,8 @@ private:
   std::vector<std::string> tree_name_substrings_;
   double tree_radius_m_, frequency_hz_, tx_power_dbm_, noise_floor_dbm_;
   double p0_db_, tree_attenuation_db_, fade_sigma_db_, fade_alpha_;
-  double link_rate_hz_, delay_ms_, airtime_capacity_, airtime_burst_s_, retx_cap_;
+  double link_rate_hz_, delay_ms_, airtime_capacity_, airtime_burst_s_;
+  double residual_pdr_;
   size_t reliable_queue_max_bytes_;
   size_t rx_qos_depth_;
 
