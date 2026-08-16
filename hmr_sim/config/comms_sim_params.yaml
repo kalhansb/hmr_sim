@@ -109,7 +109,26 @@ hmr_comms_sim:
     # the relayed map stream is dscovox_node, whose subscription depth is set by
     # its own scovox_bin_qos_depth parameter — raise that to match, or the burst
     # is discarded at the reader instead and nothing here can tell.
-    rx_qos_depth: 500
+    #
+    # Raised 500 -> 4000 (2026-08-16) after the warning above came true. 500 was
+    # sized for the SPARSE world, whose worst outage was 19.4 s ≈ 40 deltas at
+    # the ~2 Hz share rate. The 250 stems/ha stand produces 861 s outages ≈ 1720
+    # deltas, so the burst overran the depth by ~3.4x and all three dense cells
+    # finished with their two merged maps 1.5-1.8 % apart — silently, exactly as
+    # this comment predicted, with every other gate green.
+    #
+    # 4000 covers the worst outage MEASURED (1720) with a 2.3x margin, at ~240 MB
+    # per queue against ~60 kB deltas. It is deliberately NOT sized to a
+    # full-run blackout (5800 s ≈ 11 600 deltas, ~700 MB per queue, held on both
+    # the publisher and subscriber side of four queues): that is affordable on a
+    # 62 GB box but wasteful, and a blackout that long in this world would be a
+    # different experiment anyway. A world with longer outages needs a bigger
+    # number here, computed the same way: worst_outage_s * share_rate_hz * margin.
+    #
+    # The failure is no longer silent either way. sim/map_agreement.py compares
+    # the two robots' final merged-map voxel counts at teardown and FAILs the run
+    # past 0.5 %; healthy runs land at 0.01-0.09 %.
+    rx_qos_depth: 4000
 
     # --- reproducibility ----------------------------------------------------
     seed: 42                  # link fading is a pure function of (seed, tick)
