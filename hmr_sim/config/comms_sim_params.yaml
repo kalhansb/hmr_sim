@@ -110,24 +110,41 @@ hmr_comms_sim:
     # its own scovox_bin_qos_depth parameter — raise that to match, or the burst
     # is discarded at the reader instead and nothing here can tell.
     #
-    # Raised 500 -> 4000 (2026-08-16) after the warning above came true. 500 was
-    # sized for the SPARSE world, whose worst outage was 19.4 s ≈ 40 deltas at
-    # the ~2 Hz share rate. The 250 stems/ha stand produces 861 s outages ≈ 1720
-    # deltas, so the burst overran the depth by ~3.4x and all three dense cells
-    # finished with their two merged maps 1.5-1.8 % apart — silently, exactly as
-    # this comment predicted, with every other gate green.
+    # Raised 500 -> 4000 (2026-08-16) as INSURANCE, not as a fix. Read on before
+    # citing this number as evidence of anything.
     #
-    # 4000 covers the worst outage MEASURED (1720) with a 2.3x margin, at ~240 MB
-    # per queue against ~60 kB deltas. It is deliberately NOT sized to a
-    # full-run blackout (5800 s ≈ 11 600 deltas, ~700 MB per queue, held on both
-    # the publisher and subscriber side of four queues): that is affordable on a
-    # 62 GB box but wasteful, and a blackout that long in this world would be a
-    # different experiment anyway. A world with longer outages needs a bigger
-    # number here, computed the same way: worst_outage_s * share_rate_hz * margin.
+    # WITHDRAWN CLAIM. This comment used to say the warning above "came true":
+    # that 500 was sized for the SPARSE world (worst outage 19.4 s ~ 40 deltas at
+    # the ~2 Hz share rate), that the 250 stems/ha stand's 861 s outages ~ 1720
+    # deltas overran it by ~3.4x, and that this was why three dense cells ended
+    # with their merged maps 1.5-1.8 % apart. That reasoning was arithmetically
+    # fine and empirically wrong. Re-running at depth 4000 gave 3.58 % and 0.10 %
+    # — the 3.58 % worse than every depth-500 run (1.76 / 1.49 / 1.78 %). If
+    # overflow were the mechanism, deepening the queue could not make it worse.
     #
-    # The failure is no longer silent either way. sim/map_agreement.py compares
-    # the two robots' final merged-map voxel counts at teardown and FAILs the run
-    # past 0.5 %; healthy runs land at 0.01-0.09 %.
+    # WHAT THE GAP ACTUALLY IS. Tracked through a run it is transient, not
+    # cumulative: it opens while the radio is down (each robot keeps mapping its
+    # own sensors while the peer's deltas sit queued, so the two merged maps are
+    # legitimately different) and collapses when the backlog drains on reconnect
+    # — 38 % mid-run healing to 2.5 % by teardown, and flat 0 under perfect
+    # comms, which has nothing to drain. The end-of-run number measures how much
+    # backlog was still draining at the instant the stop rule fired. See
+    # sim/map_agreement.py for the full trace and the withdrawal.
+    #
+    # WHY 4000 STAYS ANYWAY. Overflow is not the observed mechanism, but nothing
+    # in this experiment measures it independently either — drop_overflow only
+    # ever sees the relay's own pre-relay queue, so the original worry remains
+    # untested rather than refuted. 4000 covers the worst outage MEASURED (1720
+    # deltas) with a 2.3x margin at ~240 MB per queue against ~60 kB deltas,
+    # which is cheap on a 62 GB box. It is deliberately NOT sized to a full-run
+    # blackout (5800 s ~ 11 600 deltas, ~700 MB per queue across four queues,
+    # publisher and subscriber side): wasteful, and a blackout that long would be
+    # a different experiment. A world with longer outages needs a bigger number,
+    # computed the same way: worst_outage_s * share_rate_hz * margin.
+    #
+    # sim/map_agreement.py reports this gap (end and peak) but no longer FAILs on
+    # it. Failing runs on it was backwards — it discarded hardest-hit cells and
+    # was on course to abort a 12-cell matrix over a non-defect.
     rx_qos_depth: 4000
 
     # --- reproducibility ----------------------------------------------------
