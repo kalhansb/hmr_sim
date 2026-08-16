@@ -22,6 +22,25 @@ WORLDS = {
             (3.0,  0.0, 0.5, 0.0),
         ],
     },
+    # Same walled 104x104 m stand as flatforest, densified from 74 to 250
+    # stems/ha by densify_forest.py. Exists because the sparse world cannot
+    # break the shipped 30 dBm radio (measured: 100 % connected, min SNR
+    # 18.6 dB against a 2 dB cutoff), which is why every earlier "comms
+    # severity" level was faked by detuning transmit power. Here the link
+    # drops on geometry alone once the robots are ~50 m apart.
+    # Its coverage floor is NOT flatforest's: more trunks mean more
+    # permanently-shadowed voxels, so re-calibrate done_unknown_fraction
+    # against this world before running anything that terminates on it.
+    'flatforest_dense': {
+        'sdf_subdir': 'flatforest',
+        'sdf_file': 'flatforest_dense.sdf',
+        'default_spawn_points': [
+            (0.0,  0.0, 0.5, 0.0),
+            (0.0,  3.0, 0.5, 0.0),
+            (0.0, -3.0, 0.5, 0.0),
+            (3.0,  0.0, 0.5, 0.0),
+        ],
+    },
     'cmu_forest': {
         'sdf_subdir': 'cmu_forest',
         'sdf_file': 'cmu_forest.sdf',
