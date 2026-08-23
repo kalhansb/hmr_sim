@@ -143,6 +143,23 @@ def generate_launch_description():
                 f"tx_power_dbm:= must be a number, got '{cli['tx_power_dbm']}'")
         print(f'--- comms_sim tx_power_dbm override: '
               f'{overrides["tx_power_dbm"]} dBm ---')
+    # tree_attenuation_db is the OTHER severity dial, and the two are not
+    # interchangeable: tx_power_dbm shifts every link by the same number of dB,
+    # while this one shifts a link in proportion to trees_on_link. Raising it
+    # therefore selects for occlusion-driven outages -- outages that happen
+    # because a trunk moved into the Fresnel zone, not because the robots drove
+    # apart -- which is the failure mode a forest reconnection experiment is
+    # supposed to be about. Exposed here for the same reason as tx_power_dbm:
+    # editing the installed params yaml leaves no trace in the run directory and
+    # silently re-scopes every run that follows.
+    if 'tree_attenuation_db' in cli:
+        try:
+            overrides['tree_attenuation_db'] = float(cli['tree_attenuation_db'])
+        except ValueError:
+            raise ValueError('tree_attenuation_db:= must be a number, '
+                             f"got '{cli['tree_attenuation_db']}'")
+        print(f'--- comms_sim tree_attenuation_db override: '
+              f'{overrides["tree_attenuation_db"]} dB ---')
     # Reliable-relay backlog cap. On overflow the node drops the OLDEST queued
     # delta and never retransmits it, so the receiver's merged map is missing
     # those voxels permanently. That is fatal to any experiment whose premise is
