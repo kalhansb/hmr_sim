@@ -36,7 +36,31 @@ hmr_comms_sim:
     # time by the receiver (last_contact_), so a minute-old claim would land
     # looking freshly heard — resetting the peer's TTL and aborting the very
     # manoeuvre under test. A stale beacon is worse than a dropped one.
-    best_effort_topics: ["exploration/intents"]
+    # exploration/team_world is the M-TARE shared world model (planner
+    # docs/mtare_evolution_plan.md §3.2), and it is gated here for the same
+    # reason and with the same wiring requirement as intents: it needs the
+    # planner's split team_world_pub_topic / team_world_sub_topics params, and
+    # on the default shared bus there is no per-robot source topic to discover,
+    # so the relay silently never forms and every arm reads as perfect comms.
+    #
+    # best-effort for TWO reasons, either of which alone would settle it:
+    #
+    #   1. The stale-beacon argument above applies verbatim. TeamWorld carries
+    #      the comms handshake, and a receiver stamps it with LOCAL receipt
+    #      time — so a queued message released on reconnect would reset the
+    #      peer's direct TTL to "just heard", exactly the corruption that keeps
+    #      intents out of the reliable set.
+    #
+    #   2. Reliable delivery would buy nothing even without (1). The message is
+    #      FULL STATE, not deltas, so an older copy contains nothing the next
+    #      one lacks; the entire value of a queued backlog is already in the
+    #      first message that arrives after the link heals. Unlike the scovox
+    #      deltas, a dropped TeamWorld cannot hole anything permanently.
+    #
+    # Listed alongside intents rather than replacing them: the two streams are
+    # independent switches (team_world_hz defaults to 0.0), and a run with the
+    # exchange off must still gate its intents.
+    best_effort_topics: ["exploration/intents", "exploration/team_world"]
 
     # --- radio / propagation (forest model, IEEE 9260568) -------------------
     tx_power_dbm: 30.0        # matches the old RobotNetworkConfig default
