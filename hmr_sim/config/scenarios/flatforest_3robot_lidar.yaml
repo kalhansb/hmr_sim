@@ -1,0 +1,49 @@
+# Three-robot LIDAR-ONLY scenario for the flatforest world.
+#
+# The N=3 counterpart of flatforest_2robot_lidar.yaml, and identical to it in
+# every respect except that a third robot exists: same world, same model, same
+# feature set, and atlas/bestla keep their exact spawn poses so a 2-robot and a
+# 3-robot run of the same seed start the first two robots in the same place.
+#
+# All three use COSTAR_HUSKY_SENSOR_CONFIG_LIDAR (VLP-16-style gpu_lidar
+# 1800x16 @ 10 Hz + IMU, no rendering cameras), overriding the registry's
+# defaults — rgbd+segmentation for atlas/bestla, and husky's own
+# SENSOR_CONFIG_1 — so the three robots carry identical sensing and team size
+# is the only thing that changed. Features drive the ros_gz bridge: each robot
+# gets /<name>/velodyne_points (frame <name>/velodyne, mounted on base_link at
+# x=0.0012 z=0.716), /<name>/imu/data, /<name>/odom_ground_truth and
+# /<name>/cmd_vel.
+#
+# husky is the third name because it is already a registered UGV; the registry
+# entry supplies nothing here (every field is overridden) but an unregistered
+# name would depend on resolve_robot_spec's tolerance for one, which is a
+# thinner guarantee than an entry that exists.
+#
+# Spawn geometry: the three sit on the y axis at -3 / 0 / +3, facing away from
+# each other. The pair scenario separates atlas and bestla by 3 m and turns
+# bestla around; this keeps that spacing and gives the third the mirrored pose,
+# so no robot starts inside another's footprint and none of them starts by
+# driving into a neighbour. Note this makes the team START connected, which is
+# what the comms emulator's warm-up and the planner's peer discovery both
+# assume — a scenario that spawns a robot out of range would begin every run in
+# an outage and confound bring-up with the treatment.
+world: flatforest
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+  - name: husky
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: -3.0, z: 0.5, yaw: 0.0}
+
+teleop:
+  enable: false
