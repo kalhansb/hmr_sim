@@ -7,16 +7,32 @@
       <background>0.7 0.7 0.7 1</background>
       <shadows>true</shadows>
     </scene>
-    <physics name='10ms' type='ignored'>
-      <max_step_size>0.01</max_step_size>
-      <real_time_factor>1</real_time_factor>
+    <!-- 20 ms step / RTF 2 (was 10 ms / RTF 1, 2026-09-04).
+         BEHAVIOURAL: halving the physics rate changes contact resolution, so
+         wheel slip, tipping and trunk collisions all resolve differently. Runs
+         on this world are NOT poolable with anything recorded before this date.
+         real_time_factor is a CEILING, not a promise. gz-sim uses it only as
+         step_size / rtf to set the update period; the wall-clock budget on this
+         box measured ~1.149 s per sim-second (RTF ~0.87) at 10 ms, i.e. already
+         CPU-bound below 1. Raising the ceiling to 2 removes the throttle; what
+         is actually achieved is whatever the slowest of physics, the canopy
+         lidar render and scovox allows.
+         KNOWN COST: a 20 ms step is a 50 Hz sensor ceiling. The gpu_lidar at
+         10 Hz is unaffected; the IMU (100 Hz) and the two 100 Hz
+         odom_publish_frequency diff-drive outputs are halved to 50 Hz.
+         real_time_update_rate below is a Gazebo-classic key that gz-sim does
+         not read; it is kept consistent with the pair above rather than
+         relied on. -->
+    <physics name='20ms' type='ignored'>
+      <max_step_size>0.02</max_step_size>
+      <real_time_factor>2.0</real_time_factor>
       <dart>
         <collision_detector>bullet</collision_detector>
         <solver>
           <solver_type>dantzig</solver_type>
         </solver>
       </dart>
-      <real_time_update_rate>1000</real_time_update_rate>
+      <real_time_update_rate>100</real_time_update_rate>
     </physics>
     <plugin name='ignition::gazebo::systems::Physics' filename='ignition-gazebo-physics-system'/>
     <plugin name='ignition::gazebo::systems::Sensors' filename='ignition-gazebo-sensors-system'>
