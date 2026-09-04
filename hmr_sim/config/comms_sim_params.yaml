@@ -66,7 +66,15 @@ hmr_comms_sim:
     tx_power_dbm: 30.0        # matches the old RobotNetworkConfig default
     noise_floor_dbm: -101.0   # 802.11n
     p0_db: 49.17              # path loss at 1 m
-    tree_attenuation_db: 11.98  # per tree crossing the Fresnel zone
+    # Per trunk crossing the Fresnel zone. 70 dB makes a SINGLE tree fatal
+    # (observed one-tree geometries needed 51-66 dB); the IEEE 9260568 fit of
+    # 11.98 let links survive ~4 trunks and every pre-2026-09 campaign ran it —
+    # a different radio regime, never pool across the change.
+    tree_attenuation_db: 70.0
+    # Hard radio horizon (3D distance). Beyond it the node adds a 200 dB cliff,
+    # so even a tree-free link is down — free-space loss alone keeps a 30 dBm
+    # link decodable for kilometres. <= 0 disables the cap.
+    max_range_m: 30.0
     tree_radius_m: 0.3
     frequency_hz: 2.4e9
     fade_sigma_db: 4.8        # shadow-fading std (stationary)

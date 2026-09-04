@@ -160,6 +160,18 @@ def generate_launch_description():
                              f"got '{cli['tree_attenuation_db']}'")
         print(f'--- comms_sim tree_attenuation_db override: '
               f'{overrides["tree_attenuation_db"]} dB ---')
+    # max_range_m is the THIRD severity dial: a hard radio horizon. The other
+    # two shape WHERE a link fails; this one bounds how far a TREE-FREE link
+    # reaches at all — free-space loss alone never drops a 30 dBm link inside
+    # the ROI. Exposed for the same manifest-provenance reason as the others.
+    if 'max_range_m' in cli:
+        try:
+            overrides['max_range_m'] = float(cli['max_range_m'])
+        except ValueError:
+            raise ValueError(
+                f"max_range_m:= must be a number, got '{cli['max_range_m']}'")
+        print(f'--- comms_sim max_range_m override: '
+              f'{overrides["max_range_m"]} m ---')
     # Reliable-relay backlog cap. On overflow the node drops the OLDEST queued
     # delta and never retransmits it, so the receiver's merged map is missing
     # those voxels permanently. That is fatal to any experiment whose premise is

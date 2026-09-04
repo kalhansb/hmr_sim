@@ -9,7 +9,9 @@
 // Link model, per robot pair at link_rate_hz on the node clock (sim time):
 //   distance + trees crossing the Fresnel zone
 //     -> path loss  P0 + 20 log10(d) + N_trees * Lv + shadow fade
-//        (forest model from https://ieeexplore.ieee.org/document/9260568)
+//        (forest model from https://ieeexplore.ieee.org/document/9260568),
+//        plus a 200 dB cliff past max_range_m — a hard radio horizon, since
+//        free-space loss alone never drops a 30 dBm link inside the ROI
 //     -> SNR -> BER (64-QAM: AWGN when line-of-sight, Rayleigh through trees)
 //     -> bandwidth tier {72, 28.9, 7.2, 0} Mbps via 8-sample SNR hysteresis.
 //   Shadow fade is an AR(1) process (stationary std = fade_sigma_db), not white
@@ -219,7 +221,16 @@ public:
     tx_power_dbm_ = declare_parameter<double>("tx_power_dbm", 30.0);
     noise_floor_dbm_ = declare_parameter<double>("noise_floor_dbm", -101.0);
     p0_db_ = declare_parameter<double>("p0_db", 49.17);
-    tree_attenuation_db_ = declare_parameter<double>("tree_attenuation_db", 11.98);
+    // 70 dB/trunk makes ONE tree in the Fresnel zone fatal: the observed
+    // one-tree link geometries needed 51-66 dB of extra loss to cross the
+    // SNR floor, which the paper's fitted 11.98 (under which links survived
+    // ~4 trunks) never supplied. Runs before 2026-09 used 11.98 and are a
+    // different radio regime — never pool across the change.
+    tree_attenuation_db_ = declare_parameter<double>("tree_attenuation_db", 70.0);
+    // Hard radio horizon (3D). With trunks fatal, tree-free lanes are the
+    // links left over, and free-space loss alone keeps a 30 dBm link decodable
+    // for kilometres — so range itself is capped. <= 0 disables the cap.
+    max_range_m_ = declare_parameter<double>("max_range_m", 30.0);
     fade_sigma_db_ = declare_parameter<double>("fade_sigma_db", 4.8);
     fade_alpha_ = declare_parameter<double>("fade_alpha", 0.9);
     link_rate_hz_ = declare_parameter<double>("link_rate_hz", 5.0);
@@ -559,8 +570,15 @@ private:
     ps.fade_db = fade_alpha_ * ps.fade_db +
       std::sqrt(1.0 - fade_alpha_ * fade_alpha_) * gauss(fade_rng_);
 
-    const double path_loss = p0_db_ + 20.0 * std::log10(distance) +
+    double path_loss = p0_db_ + 20.0 * std::log10(distance) +
       trees_on_link * tree_attenuation_db_ + ps.fade_db;
+    // The radio horizon lands as path loss, not a connected=false override,
+    // so every published column (rx power, SNR, BER, tier) tells the same
+    // story and the 3-of-8 tier hysteresis still smooths the crossing.
+    // 200 dB puts SNR near -100 dB: below every tier, beyond any fade.
+    if (max_range_m_ > 0.0 && distance > max_range_m_) {
+      path_loss += 200.0;
+    }
     const double rx_dbm = tx_power_dbm_ - path_loss;
     const double snr_db = rx_dbm - noise_floor_dbm_;
 
@@ -895,7 +913,7 @@ private:
   std::string world_sdf_;
   std::vector<std::string> tree_name_substrings_;
   double tree_radius_m_, frequency_hz_, tx_power_dbm_, noise_floor_dbm_;
-  double p0_db_, tree_attenuation_db_, fade_sigma_db_, fade_alpha_;
+  double p0_db_, tree_attenuation_db_, max_range_m_, fade_sigma_db_, fade_alpha_;
   double link_rate_hz_, delay_ms_, airtime_capacity_, airtime_burst_s_;
   double residual_pdr_;
   size_t reliable_queue_max_bytes_;

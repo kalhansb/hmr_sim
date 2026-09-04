@@ -44,6 +44,20 @@ world SDF (trees) ─────►   distance + trees → SNR → {connected,�
    smoothly over seconds instead of being white noise per sample, and it is a
    pure function of `(seed, tick)`, so link traces are exactly repeatable and
    independent of the relayed traffic.
+
+   `Lv` (`tree_attenuation_db`) defaults to **70 dB per trunk** as of 2026-09:
+   a single tree in the Fresnel zone kills the link (the observed one-tree
+   geometries needed 51–66 dB of extra loss to cross the SNR floor). The
+   paper's fitted 11.98 dB — under which links survived ~4 trunks — was the
+   default for every earlier campaign; runs on the two values are different
+   radio regimes and must never be pooled.
+
+   Past `max_range_m` (default **30 m**, 3D distance; `<= 0` disables) a
+   further **200 dB** is added — a hard radio horizon, without which a
+   tree-free 30 dBm link stays decodable for kilometres on free-space loss
+   alone. It lands as path loss rather than a `connected=false` override, so
+   the published SNR/BER/tier columns stay mutually consistent and the tier
+   hysteresis (step 5) still smooths the boundary crossing.
 4. **SNR → BER**: 64-QAM over AWGN when the link is tree-free, Rayleigh otherwise.
 5. **Bandwidth tier** `{72, 28.9, 7.2, 0}` Mbps with the original 3-of-8 /
    8-of-8 SNR hysteresis — now genuinely spanning `8 / link_rate_hz` seconds
