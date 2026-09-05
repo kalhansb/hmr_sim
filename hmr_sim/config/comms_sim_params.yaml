@@ -108,8 +108,35 @@ hmr_comms_sim:
     # --- shared channel -----------------------------------------------------
     # All links contend for one channel: airtime_capacity seconds of air per
     # second. A message of B bytes on a link at R Mbps costs 8B/R seconds.
-    airtime_capacity: 1.0
-    airtime_burst_s: 0.1      # max accumulated idle airtime (burst allowance)
+    #
+    # capacity 1.0 -> 0.6 and burst 0.1 -> 0.25 (2026-09-05), because the old
+    # pair was unphysical at both ends:
+    #
+    #   capacity 1.0 claimed 100% channel utilisation. cost_s is charged as
+    #   8B/R against the PHY rate (up to the 72 Mbps default), but no real
+    #   802.11 link delivers its PHY rate as goodput -- preamble, PLCP and MAC
+    #   headers, FCS, SIFS, ACK, DIFS and average backoff all consume air. 72.2
+    #   Mbps MCS7 measures out at roughly 40-45 Mbps of MAC throughput, i.e.
+    #   ~60% efficiency, so ~0.6 s of every second is actually available for
+    #   payload bits.
+    #
+    #   burst 0.1 let the model bank only 100 ms of air, so a momentary surge
+    #   was DROPPED where a real interface would queue and delay it -- driver
+    #   and qdisc buffers classically hold hundreds of ms (the bufferbloat
+    #   observation). 0.25 s is a typical interface's worth of buffering. This
+    #   matters here specifically: measured exhaustion is front-loaded, during
+    #   the initial map dump while the team is still co-located, which is
+    #   exactly the transient a real radio absorbs.
+    #
+    # Net: sustained supply down 40% (protocol overhead is real), transient
+    # tolerance up 2.5x (interface buffering is real). These are principled but
+    # NOT calibrated against a measured radio, and they do not touch the model's
+    # real structural gap -- one GLOBAL bucket, i.e. no spatial reuse, so two
+    # connected pairs at opposite ends of the map still contend. That is a code
+    # change, not a parameter. See ~/hmr_campaign/ts1_analysis/docs/
+    # COMMS_MODEL_REALISM.md.
+    airtime_capacity: 0.6
+    airtime_burst_s: 0.25     # max accumulated idle airtime (burst allowance)
     retx_cap: 4.0             # cap on the reliable retransmission cost factor
 
     # --- reliable backlog bound --------------------------------------------
