@@ -1,0 +1,66 @@
+# Four-robot LIDAR-ONLY scenario for the DENSE flatforest world.
+#
+# The N=4 rung of the team-size series. Identical to
+# flatforest_dense_3robot_lidar.yaml in every respect except that a fourth robot
+# exists: same world, same model, same feature set for every robot, and atlas,
+# bestla and husky keep their exact spawn poses, so the first three robots of a
+# 4-robot run of a given seed start where a 3-robot run of that seed starts
+# them, and the first two where a 2-robot run starts them. Team size is the only
+# thing that moves along the series.
+#
+# The world is flatforest_dense (250 stems/ha) for the reason the 3-robot file
+# gives: the comms link here is occlusion-gated, so stem density and not
+# transmit power decides how often contact is lost. Changing density at the same
+# moment team size changed would make the series uninterpretable.
+#
+# skadi is the fourth name. It is registered in _robot_registry (Norse, beside
+# atlas and bestla) rather than left unregistered: resolve_robot_spec does
+# tolerate an unknown name as long as the scenario supplies sdf_file, but that
+# tolerance is a weaker guarantee than an entry that exists, and the registry is
+# the file a future reader checks. Every field is overridden here anyway.
+#
+# Spawn geometry: the four sit on the y axis at -3 / 0 / +3 / +6, alternating
+# yaw so no robot starts by driving into a neighbour. The line is extended
+# rather than rearranged into a square precisely so the earlier poses survive
+# unchanged. Longest initial link is husky(-3) to skadi(+6) = 9 m, inside the
+# 30 m radio horizon, so the team STARTS fully connected -- which the comms
+# warm-up and the planner's peer discovery both assume. At 70 dB per trunk a
+# single stem in the Fresnel corridor would break a link even at 9 m, so this
+# assumption is checked empirically on the smoke cell by reading all 6 pairs out
+# of link_states.csv at t=0, not asserted from the world SDF.
+#
+# All four use COSTAR_HUSKY_SENSOR_CONFIG_LIDAR (VLP-16-style gpu_lidar
+# 1800x16 @ 10 Hz + IMU, no rendering cameras), so the robots carry identical
+# sensing and team size is the only thing that changed.
+#
+# Load: four lidars render on the gz sensors thread and four scovox mappers cost
+# ~1 core-second per sim-second each on a 20-core box whose gz main loop is
+# already at the one-core wall. Expect a lower achieved RTF than N=2. That is a
+# wall-time cost, but it is ALSO a confound -- CPU contention shows up as
+# apparent comms behaviour -- so the achieved RTF and the mapper keep-up must be
+# recorded per team size and reported alongside the result.
+world: flatforest_dense
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+  - name: husky
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: -3.0, z: 0.5, yaw: 0.0}
+
+  - name: skadi
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 6.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false
