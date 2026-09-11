@@ -1,0 +1,64 @@
+# 4-robot LIDAR-ONLY scenario for the CMU forest stand with the buildings
+# removed (world cmu_forest_nb).
+#
+# Identical to cmu_forest_4robot_lidar.yaml in every respect except the world,
+# and that world is cmu_forest with its three house models deleted and nothing
+# else touched: same 234 oaks, same 108 pines, same poses, same perimeter fence.
+#
+# WHY THE BUILDINGS ARE GONE. The ts1c N=2 pilot lost a cell: a robot sat at
+# (-6.95, -42.68) for 2558 sim-seconds and ended censored_at_T, at a spot an
+# earlier plateau probe had pinned on a DIFFERENT seed 0.28 m away. Both sites
+# are 1.64 m from house_2's west wall. Both were on the `off` arm, which makes
+# the trap differential across the contrast rather than merely expensive.
+#
+# WHAT WAS RULED OUT. The natural reading, that the stand pinches into dead
+# ends, does not survive its control. Modelled the way the global planning map
+# actually sees the world (obstacle triangles in the z range [0.05, 1.00] body
+# slab; 1.60 m clearance required, from inflation 1.5 m at 0.40 m/cell against
+# the local planner's 0.80 m), 19.4% of cmu_forest's free ROI lies behind a
+# throat too narrow for the global planner to route out of. flatforest_dense
+# scores 28.0% on the identical measure and produced ZERO stalls over 300 s in
+# 711 robot-runs. Corridor geometry does not predict stalling; cutting trees
+# would have changed the stand and fixed nothing.
+#
+# The buildings are what the two worlds actually differ in, and every large
+# pocket in cmu_forest sits on a house face. Deleting them opens the observed
+# site from a 1.40 m throat to 1.79 m and moves total pocket area 19.4% to
+# 18.0%, i.e. the stand is left as it was.
+#
+# The stand-vs-flatforest comparison this world exists for is UNCHANGED: 234
+# oaks and 108 pines over 150 x 150 m, 152 stems/ha inside the ROI against
+# flatforest_dense's ~250, clumped rather than uniform, mean nearest-neighbour
+# stem spacing 6.56 m. The perimeter fence stays and is still outside the ROI
+# (all 80 walls at r >= 68.7 m).
+#
+# BEFORE RUNNING ANYTHING THAT TERMINATES ON COVERAGE, re-measure the
+# unknown-fraction floor HERE. Removing two buildings from inside the ROI
+# removes permanently-shadowed volume, so the floor moves and it moves DOWN:
+# cmu_forest's 0.64 and ts1b's 0.64 are both inherited numbers and neither
+# transfers. Measure it on a smoke cell.
+world: cmu_forest_nb
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+  - name: husky
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: -3.0, z: 0.5, yaw: 0.0}
+
+  - name: skadi
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 6.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false

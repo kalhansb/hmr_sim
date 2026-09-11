@@ -90,6 +90,33 @@ WORLDS = {
             (3.0,  0.0, 0.5, 0.0),
         ],
     },
+    # cmu_forest with the three houses deleted and NOTHING else changed.
+    # Registered 2026-09-11 after the ts1c N=2 pilot lost a cell to a robot
+    # that sat 1.64 m from cmu_house_2's west wall for 2558 sim-seconds, at a
+    # spot an earlier probe had pinned on a different seed 0.28 m away. Both
+    # events were on the `off` arm, so the trap was not merely expensive, it
+    # was differential across the contrast.
+    # The stand is NOT the cause and was left alone: modelled as the global
+    # planning map sees it, 19.4% of cmu_forest's free ROI sits behind a
+    # throat below the planner's 1.60 m requirement, but flatforest_dense
+    # scores 28.0% on the same measure with ZERO stalls over 300 s in 711
+    # robot-runs. Corridor width does not predict stalling. Deleting the
+    # houses opens the observed site from a 1.40 m to a 1.79 m throat and
+    # moves total pocket area only 19.4% -> 18.0%.
+    # SAME FLOOR WARNING AS THE OTHER STANDS: removing two buildings from
+    # inside the ROI removes permanently-shadowed volume, so the reachable
+    # unknown fraction MOVES. Re-measure it here before running anything that
+    # terminates on coverage; do not inherit cmu_forest's or ts1b's 0.64.
+    'cmu_forest_nb': {
+        'sdf_subdir': 'cmu_forest',
+        'sdf_file': 'cmu_forest_nb.sdf',
+        'default_spawn_points': [
+            (0.0,  0.0, 0.5, 0.0),
+            (0.0,  3.0, 0.5, 0.0),
+            (0.0, -3.0, 0.5, 0.0),
+            (3.0,  0.0, 0.5, 0.0),
+        ],
+    },
     'cmu_campus': {
         'sdf_subdir': 'cmu_campus',
         'sdf_file': 'cmu_campus.sdf',
