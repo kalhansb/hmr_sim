@@ -103,10 +103,17 @@ WORLDS = {
     # robot-runs. Corridor width does not predict stalling. Deleting the
     # houses opens the observed site from a 1.40 m to a 1.79 m throat and
     # moves total pocket area only 19.4% -> 18.0%.
-    # SAME FLOOR WARNING AS THE OTHER STANDS: removing two buildings from
-    # inside the ROI removes permanently-shadowed volume, so the reachable
-    # unknown fraction MOVES. Re-measure it here before running anything that
-    # terminates on coverage; do not inherit cmu_forest's or ts1b's 0.64.
+    # FLOOR MEASURED HERE 2026-09-11: use done_unknown_fraction=0.58, NOT the
+    # inherited 0.64. Two probe cells (cfnb_plateau, off arm, seeds 801/802,
+    # 3000 s at done_unknown=0.01) reach 0.4917 and 0.4939, against
+    # cmu_forest's 0.5139 -- and cmu_forest's was measured with atlas stuck in
+    # the house_2 trap for 1297 s, so it was never the achievable floor.
+    # The curve is a staircase driven by map merges, and 0.64 lands seed802 on
+    # the EARLY cliff: it latches at t=1010 with 0.145 of the map still
+    # recoverable. 0.58 latches both seeds at the knee (t=1595 and t=1750) and
+    # clears the slower robot's 3000 s value by +0.067. See the long note in
+    # config/scenarios/cmu_forest_nb_2robot_lidar.yaml for the full table and
+    # for the knife-edge caveat that comes with any threshold on a staircase.
     'cmu_forest_nb': {
         'sdf_subdir': 'cmu_forest',
         'sdf_file': 'cmu_forest_nb.sdf',

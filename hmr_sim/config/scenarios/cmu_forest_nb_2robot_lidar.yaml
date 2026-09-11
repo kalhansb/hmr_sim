@@ -32,11 +32,41 @@
 # stem spacing 6.56 m. The perimeter fence stays and is still outside the ROI
 # (all 80 walls at r >= 68.7 m).
 #
-# BEFORE RUNNING ANYTHING THAT TERMINATES ON COVERAGE, re-measure the
-# unknown-fraction floor HERE. Removing two buildings from inside the ROI
-# removes permanently-shadowed volume, so the floor moves and it moves DOWN:
-# cmu_forest's 0.64 and ts1b's 0.64 are both inherited numbers and neither
-# transfers. Measure it on a smoke cell.
+# COVERAGE THRESHOLD, MEASURED HERE 2026-09-11, USE 0.58 AND NOT 0.64.
+# Two probe cells (prefix cfnb_plateau, off arm, seeds 801/802) ran the full
+# 3000 s at done_unknown_fraction=0.01 so they traverse the whole curve and the
+# crossing is read off the series afterwards. Both therefore end censored_at_T
+# by design.
+#
+# The curve is a STAIRCASE, not a smooth decay: long flats punctuated by
+# map-merge steps, so a threshold is never approached, it is jumped over, and
+# two thresholds inside one flat are the same experiment under two names. In
+# seed801 every threshold from 0.68 down to 0.52 latches within 41 s of itself,
+# at t = 1565 to 1606. seed802 has two cliffs instead of one, at t ~ 1010 and
+# t ~ 1755.
+#
+# That second cliff is what rules out the inherited 0.64. It latches seed802 at
+# t=1010 with u=0.6371 while the team still goes on to reach 0.4917, i.e. it
+# stops the cell with 0.145 of the map still recoverable and BEFORE the larger
+# of the two merge events. It is not measuring a plateau, it is measuring which
+# side of a cliff the run happened to be on.
+#
+# 0.58 latches at t=1595 and t=1750, both at the knee: the per-300 s rate is
+# flat to three decimals from t=1820 onward in seed801 and near-flat in seed802.
+# It clears the slowest robot's 3000 s value by +0.067 and +0.069, which is the
+# same margin flatforest_dense2 was accepted on (+0.0698).
+#
+# KNIFE EDGE, STATED RATHER THAN HIDDEN: because the curve is a staircase,
+# 0.60 lands seed802 on the early cliff and 0.58 on the late one, a 730 s
+# difference for a 0.02 change in threshold. Every threshold sits on some
+# cliff for some seed; this is a property of merge-driven coverage, not of this
+# number. n=2 probes.
+#
+# Floor, for the record: 0.4917 and 0.4939 at 3000 s, against cmu_forest's
+# 0.5139 -- and cmu_forest's was measured with atlas stuck in the house_2 trap
+# for 1297 s, so it was never the achievable floor to begin with. Anything at
+# or below 0.51 never latches: the SLOWER robot of each pair ends at 0.5134 and
+# 0.5111, and the criterion is per-robot.
 world: cmu_forest_nb
 
 robots:
