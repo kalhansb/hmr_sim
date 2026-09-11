@@ -1,0 +1,51 @@
+# Two-robot LIDAR-ONLY scenario for the CMU forest world.
+#
+# Identical to flatforest_dense_2robot_lidar.yaml in every respect except the
+# world: same robots, same sensors, same spawn poses, so a comparison against
+# the ts1b series isolates the stand and nothing else.
+#
+# Why this world exists as a second stand. flatforest_dense is a procedural
+# lattice -- 270 identical oak instances on a jittered grid over roughly one
+# hectare, no structure above the stem scale. cmu_forest is a hand-built stand:
+# 234 oaks and 108 pines placed irregularly over 150 x 150 m, two houses, and a
+# perimeter fence. Inside the 100 x 100 m ROI it carries 152 stems/ha against
+# flatforest_dense's ~250, with a mean nearest-neighbour stem spacing of 6.56 m.
+# It is the SPARSER of the two, and it is clumped rather than uniform.
+#
+# That matters because the comms link here is occlusion-gated -- no measured
+# dropout in the campaign record had clear line-of-sight -- so the stand decides
+# how often the team loses contact. A clumped stand at 0.6x the mean density is
+# not "the same experiment, easier": it can produce FEWER, LONGER outages than a
+# uniform stand of the same mean density, because occlusion arrives in runs.
+# That is the thing worth measuring, and it is why mean density alone does not
+# predict the result.
+#
+# Spawn poses are the flatforest line, unchanged and verified in this world:
+# atlas at the origin, bestla at y=+3 facing away. Nearest obstacle to either
+# spawn is 5.6 m (an oak at 4.17, 6.74), the initial link is 3.00 m, and no
+# perimeter wall lies within the ROI -- the fence sits at x = -69/+81 and
+# y = -77/+73, 19 m clear of the nearest ROI edge. The only non-tree obstacles
+# inside the ROI are cmu_house_1 at (-27.0, 33.4) and cmu_house_2 at (1.1, -36.0).
+#
+# BEFORE running anything that TERMINATES on coverage here, re-measure the
+# unknown-fraction floor. ts1b's done_unknown_fraction=0.64 was calibrated on
+# flatforest_dense and does not transfer: a different stem count, a clumped
+# layout, and two solid buildings that permanently shadow their own footprints
+# all move the floor, and they do not all move it the same way. "No criterion
+# window exists any more" is a real possible outcome. Measure it on a smoke
+# cell, do not assume the sparser stand is the easier one.
+world: cmu_forest
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false
