@@ -255,9 +255,25 @@
               <max_angle>0.261799</max_angle>
             </vertical>
           </scan>
+          <!-- Far clip 25 m, was 100 m (changed 2026-09-15, generation 9).
+               gz-sim hands <max> to the gpu_lidar as the render far clip, so a
+               100 m clip rasterised the whole 96 x 104 m world into every one of
+               the 10 depth frames per second per robot. Nothing consumed a
+               return past 20 m: scovox integrates with max_range 20.0 and the
+               nav costmap reads sensors.max_range_m 20.0 (both in
+               simple_nav_3d.launch.py, dscovox_lidar branch), so every hit
+               between 20 and 100 m was rendered, bridged, and then dropped
+               twice. 25 keeps a 5 m margin over both consumers.
+               NOT free of behavioural risk, and the direction to check is
+               specific: a beam that would have hit a trunk at 40 m now returns
+               no hit instead of a hit that gets discarded. Both end up absent
+               from the map, which is why this is expected to be a no-op on the
+               maps and a saving on the clock, but it is the one edit here
+               whose no-op-ness rests on an argument rather than on an
+               unchanged file, so check map coverage on the smoke cell. -->
           <range>
             <min>0.05</min>
-            <max>100</max>
+            <max>25</max>
             <resolution>0.01</resolution>
           </range>
           <noise>

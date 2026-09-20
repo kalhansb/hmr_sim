@@ -5,7 +5,13 @@
       <grid>false</grid>
       <ambient>1.0 1.0 1.0 1</ambient>
       <background>0.6 0.8 1.0 1</background>
-      <shadows>true</shadows>
+      <!-- false since 2026-09-15 (generation 9). Ambient is 1 1 1, i.e. fully
+           lit from every direction, so the shadow pass darkened patches of a
+           scene that has no directional light story to tell; it cost render
+           time in the gpu_lidar and segmentation passes and bought nothing any
+           consumer reads. The lidar is a depth sensor and never saw them at
+           all. -->
+      <shadows>false</shadows>
     </scene>
     <!-- 20 ms step / RTF 2 (was 10 ms / RTF 1, 2026-09-04).
          BEHAVIOURAL: halving the physics rate changes contact resolution, so
@@ -41,15 +47,56 @@
     <plugin name="ignition::gazebo::systems::SceneBroadcaster" filename="ignition-gazebo-scene-broadcaster-system" />
     <plugin name="ignition::gazebo::systems::UserCommands" filename="ignition-gazebo-user-commands-system" />
     <plugin name="ignition::gazebo::systems::Imu" filename="libignition-gazebo-imu-system.so" />
-    <plugin name="hmr_net_sim_system::HMRNetSim" filename="HMRNetSim">
-      <!-- Comms topics are now handled by the hmr_comms_relay_node (ROS2 node) -->
-      <robot>
-        <name>atlas</name>
-      </robot>
-      <robot>
-        <name>bestla</name>
-      </robot>
-    </plugin>
+    <!-- REMOVED 2026-09-15 (generation 9): the hmr_net_sim_system::HMRNetSim
+         plugin block, which named atlas and bestla.
+         WHY, precisely: NOT because it fails to load. libHMRNetSim.so is built
+         and installed (install/hmr_sim/lib/hmr_sim/libHMRNetSim.so) and gz
+         loads it without error. It is removed because it is dead weight. It is
+         the pre-port comms model, superseded by hmr_comms_sim_node.cpp, a ROS 2
+         node the harness launches; it writes nothing to the ECM (verified: zero
+         SetComponentData / Create / Remove calls in src/HMRNetSim.cc), so it
+         cannot affect physics or any sensor; and it only advertises gz topics
+         under /robot_hmr_net_sim/. The single node that ever read those,
+         hmr_comms_relay_node, is launched by nothing in this workspace.
+         So it spent PostUpdate CPU every physics step computing distances and
+         trees-on-link for a pair no consumer reads.
+         MEASURED noise, in a cmu_forest_nb cell whose copy of this block had no
+         robot children (ts1d_n4 / mtare_rendezvous_r40_ttl0_seed4): 6809 of
+         that run's 7921 gz log lines, 86 percent of a 1.1 MB log, were this
+         plugin's "Not enough robots" Dbg line. In THIS world the block did name
+         two robots, so here it did the arithmetic rather than skipping it.
+         Removal is behaviourally inert for the experiment and strictly cheaper.
+         The live radio model, and the robot list that actually governs it, is
+         config/comms_sim_params.yaml. -->
+    <!-- A7 2026-09-15 (generation 9), applied across this file:
+         (a) 48 duplicate <pose> children removed from <inertial> blocks. SDF
+             takes the first and silently ignores the rest, so the second value
+             was never the inertial origin anyone reading this file would think
+             it was.
+         (b) 50 models carried <static>false</static> and are now static. They
+             are maize stalks and boulders: scene decoration that no arm reads
+             and that nothing is supposed to push. Dynamic meant every one of
+             them was integrated, collision-checked and woken every step.
+         (c) 48 maize <collision> blocks removed. A 0.02 x 0.02 x 0.40 m stalk
+             is not an obstacle to a Husky, and its collision box topped out at
+             0.40 m, exactly the bottom edge of the 0.40-1.00 m band
+             simple_nav_3d reads, so it could flicker in and out of the costmap
+             on nothing. Stone collisions are KEPT: a 157 kg,
+             1 x 0.64 x 0.33 m boulder should stop a robot. -->
+    <!-- Tree collision geometry is the FULL oak_tree.dae mesh, canopy included,
+         and it is deliberately left that way. The 2026-09-13 setup review
+         flagged this as the leading wall-time cost on the grounds that each oak
+         carries a ~76k-triangle collision. Measured from the cached mesh, it is
+         948 primitives / 812 vertices per tree: 76k is the TOTAL over the 80
+         trees of the sparse world, read as if it were per-tree. This world has
+         270 oaks, all pointing at that same mesh with no scale override, so
+         ~256k collision triangles in total and ~948 per static BVH. That is not
+         the bottleneck, and swapping in trunk cylinders would have changed every
+         contact in the world to buy nothing. Facts worth keeping from the
+         measurement: the trunk is ~0.30-0.55 m in radius across the 0.40-1.00 m
+         band simple_nav_3d reads (comms_sim_params.yaml's tree_radius_m of 0.3
+         is the low end of that, not a mismatch), and the mesh has a root flare
+         reaching ~1.7 m at ground level which no consumer looks at. -->
     <gravity>0 0 -9.8</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
     <atmosphere type="adiabatic" />
@@ -6624,7 +6671,7 @@
     </model>
     <model name="Stone_01">
       <pose>-34.634 -38.0572 0.162781 0.000188 0.00012 -0.715235</pose>
-      <static>false</static>
+      <static>true</static>
       <allow_auto_disable>true</allow_auto_disable>
       <link name="Stone_01_link">
         <inertial>
@@ -6749,29 +6796,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -6788,7 +6813,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02">
@@ -6805,29 +6830,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -6844,50 +6847,25 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
-      <self_collide>false</self_collide>
-    </model>
-    <model name="MaleVisitorOnPhone">
       <static>true</static>
-      <link name="body">
-        <pose>0 0 0 0 -0 0</pose>
-        <visual name="visual">
-          <geometry>
-            <mesh>
-              <uri>model://MaleVisitorOnPhone/meshes/MaleVisitorStatic.obj</uri>
-            </mesh>
-          </geometry>
-          <plugin filename="ignition-gazebo-label-system" name="ignition::gazebo::systems::Label">
-            <label>8</label>
-          </plugin>
-        </visual>
-        <collision name="collision">
-          <geometry>
-            <mesh>
-              <uri>model://MaleVisitorOnPhone/meshes/MaleVisitorStatic_Col.obj</uri>
-            </mesh>
-          </geometry>
-        </collision>
-        <inertial>
-          <pose>0 0 0 0 -0 0</pose>
-          <mass>1</mass>
-          <inertia>
-            <ixx>1</ixx>
-            <ixy>0</ixy>
-            <ixz>0</ixz>
-            <iyy>1</iyy>
-            <iyz>0</iyz>
-            <izz>1</izz>
-          </inertia>
-        </inertial>
-        <enable_wind>false</enable_wind>
-      </link>
-      <pose>2 2 0 0 -0 0</pose>
       <self_collide>false</self_collide>
     </model>
+    <!-- REMOVED 2026-09-15 (generation 9): model MaleVisitorOnPhone, a human
+         figure at (2, 2) with a mesh collision and semantic label 8. The N=2
+         spawn points sit 2.83 m and 2.24 m from it, and at N=4 three of the
+         four are within 2.83 m, all inside the 0.40-1.00 m height band
+         simple_nav_3d counts obstacles in. So every run in every arm began by
+         driving around a mannequin. It is scene furniture from another world's
+         demo; nothing in the experiment reads label 8, and it had already cost
+         the target list a candidate (targets_flatforest.yaml, the target file
+         these campaigns actually load, skips "Oak tree_19" partly because this
+         model stands 0.120 m from that trunk, measured). The other reason to
+         skip that tree, that its vantage ring would sit on the spawn point, is
+         independent and still holds, so the target list is unchanged.
+         BEHAVIOURAL for the first few metres of every run. -->
     <model name="Stone_01_1">
       <pose>-38.3118 -26.9527 0.16278 0.00019 0.000121 -1.82608</pose>
-      <static>false</static>
+      <static>true</static>
       <allow_auto_disable>true</allow_auto_disable>
       <link name="Stone_01_link">
         <inertial>
@@ -7012,29 +6990,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7051,7 +7007,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_2">
@@ -7068,29 +7024,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7107,7 +7041,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_3">
@@ -7124,29 +7058,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7163,7 +7075,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_4">
@@ -7180,29 +7092,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7219,7 +7109,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_5">
@@ -7236,29 +7126,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7275,7 +7143,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6">
@@ -7292,29 +7160,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7331,7 +7177,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_7">
@@ -7348,29 +7194,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7387,7 +7211,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_8">
@@ -7404,29 +7228,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7443,7 +7245,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_9">
@@ -7460,29 +7262,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7499,7 +7279,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_10">
@@ -7516,29 +7296,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7555,7 +7313,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_11">
@@ -7572,29 +7330,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7611,7 +7347,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_12">
@@ -7628,29 +7364,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7667,7 +7381,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_13">
@@ -7684,29 +7398,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7723,7 +7415,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_14">
@@ -7740,29 +7432,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7779,7 +7449,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_1">
@@ -7796,29 +7466,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7835,7 +7483,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_2">
@@ -7852,29 +7500,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7891,7 +7517,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_3">
@@ -7908,29 +7534,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -7947,7 +7551,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_4">
@@ -7964,29 +7568,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8003,7 +7585,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_5">
@@ -8020,29 +7602,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8059,7 +7619,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_6">
@@ -8076,29 +7636,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8115,7 +7653,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_7">
@@ -8132,29 +7670,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8171,7 +7687,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_8">
@@ -8188,29 +7704,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8227,7 +7721,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_9">
@@ -8244,29 +7738,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8283,7 +7755,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_10">
@@ -8300,29 +7772,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8339,7 +7789,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_11">
@@ -8356,29 +7806,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8395,7 +7823,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_12">
@@ -8412,29 +7840,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8451,7 +7857,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_13">
@@ -8468,29 +7874,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8507,7 +7891,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_14">
@@ -8524,29 +7908,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8563,7 +7925,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_15">
@@ -8580,29 +7942,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8619,7 +7959,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_16">
@@ -8636,29 +7976,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8675,7 +7993,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_17">
@@ -8692,29 +8010,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8731,7 +8027,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_18">
@@ -8748,29 +8044,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8787,7 +8061,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_19">
@@ -8804,29 +8078,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8843,7 +8095,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_20">
@@ -8860,29 +8112,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8899,7 +8129,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_21">
@@ -8916,29 +8146,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -8955,7 +8163,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_22">
@@ -8972,29 +8180,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9011,7 +8197,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_23">
@@ -9028,29 +8214,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9067,7 +8231,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_24">
@@ -9084,29 +8248,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9123,7 +8265,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_01_25">
@@ -9140,29 +8282,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9179,7 +8299,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6_1">
@@ -9196,29 +8316,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9235,7 +8333,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6_2">
@@ -9252,29 +8350,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9291,7 +8367,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6_3">
@@ -9308,29 +8384,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9347,7 +8401,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6_4">
@@ -9364,29 +8418,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9403,7 +8435,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6_5">
@@ -9420,29 +8452,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9459,7 +8469,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6_6">
@@ -9476,29 +8486,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9515,7 +8503,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="maize_02_6_7">
@@ -9532,29 +8520,7 @@
             <iyz>0</iyz>
             <izz>1.6666700000000001e-05</izz>
           </inertia>
-          <pose>0 0 0.1 0 0 0</pose>
         </inertial>
-        <collision name="collision">
-          <pose>0 0 0.2 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.02 0.02 0.4</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode />
-            </contact>
-            <bounce />
-            <friction>
-              <ode>
-                <mu>0.7</mu>
-                <mu2>0.7</mu2>
-              </ode>
-            </friction>
-          </surface>
-        </collision>
         <visual name="visual">
           <geometry>
             <mesh>
@@ -9571,7 +8537,7 @@
         <kinematic>false</kinematic>
         <pose>0 0 0 0 -0 0</pose>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <!-- Perimeter walls (cmu_grey_wall is 7.5m x 0.2m x 2.8m) -->

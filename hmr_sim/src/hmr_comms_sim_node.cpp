@@ -42,7 +42,14 @@
 // Diagnostics:
 //   ~/link_states  std_msgs/Float64MultiArray, one row per unordered pair:
 //                  [i, j, distance_m, trees_on_link, path_loss_db, snr_db,
-//                   ber, bandwidth_mbps, connected]
+//                   ber, bandwidth_mbps, connected, valid]
+//                  valid == 0 means THE MODEL HAS NOTHING TO SAY about this
+//                  pair on this tick, because at least one endpoint's pose is
+//                  missing or older than pose_timeout_s. Every physical field
+//                  in an invalid row is published as a hard zero (ber 1.0,
+//                  bandwidth 0.0) rather than as the last value computed from
+//                  a pose that has since gone stale. Consumers must drop
+//                  invalid rows, not average them in.
 //   ~/robot_index  latched std_msgs/String JSON: row/column key for the above
 //   ~/stats        std_msgs/String JSON, per-link relay/drop counters
 
@@ -54,6 +61,7 @@
 #include <tinyxml2.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <deque>
@@ -97,6 +105,11 @@ double PointToSegmentDistSq2D(const Vec3 & a, const Vec3 & b, const Vec3 & c)
   return acx * acx + acy * acy - e * e / f;
 }
 
+// The one channel width the whole rate ladder is quoted in: the 72.0 / 28.9 /
+// 7.2 Mbps tiers are 802.11n 20 MHz MCS7 / MCS3 / MCS0 rates. Changing this
+// without changing the ladder makes every Eb/N0 in this file wrong.
+constexpr double kChannelBandwidthHz = 20e6;
+
 double FresnelZoneRadius(double distance_m, double frequency_hz)
 {
   return 0.5 * std::sqrt(3.0e8 / frequency_hz * distance_m);
@@ -107,22 +120,35 @@ double DbmToPow(double dbm)
   return 0.001 * std::pow(10.0, dbm / 10.0);
 }
 
-// 64-QAM BER over AWGN (line of sight), 72 Mbps in 20 MHz.
-double AwgnQam64Ber(double power_w, double noise_w)
+// 64-QAM BER over AWGN (line of sight).
+//
+// spectral_efficiency is bits/s/Hz AT THE TIER THE LINK IS ACTUALLY IN, passed
+// in by the caller, not the top tier: Eb/N0 = (S/N) / (R/B), so a link that has
+// downshifted spreads the same received power over fewer bits per second and
+// each bit gets more energy. Hardcoding the 72 Mbps value here charged a
+// downshifted link the error rate of a gear it was not in — see the
+// "Deliberately removed" note below for what that cost.
+//
+// The constellation stays 64-QAM at every tier, which the 28.9 and 7.2 Mbps
+// tiers are not (802.11n MCS3 is 16-QAM, MCS0 is BPSK). At equal Eb/N0 a
+// lower-order constellation has a LOWER error rate, so this is a pessimistic
+// bound on the BER of the real tier, not an estimate of it. That is deliberate:
+// ber is a published diagnostic that gates nothing, and a bound written down as
+// a bound beats a second pair of closed forms nobody has checked.
+double AwgnQam64Ber(double power_w, double noise_w, double spectral_efficiency)
 {
   const double M = 64.0;
   const int k = 6;
-  const double spectral_efficiency = 72e6 / 20e6;
   const double ebno = (power_w / noise_w) / spectral_efficiency;
   const double factor = (4.0 / k) * (1.0 - 1.0 / std::sqrt(M)) * 0.5;
   const double x = std::sqrt((3.0 * k * ebno) / (M - 1.0));
   return factor * std::erfc(x / std::sqrt(2.0));
 }
 
-// 64-QAM BER over a Rayleigh channel (trees on the link), same rate.
-double RayleighQam64Ber(double power_w, double noise_w)
+// 64-QAM BER over a Rayleigh channel (trees on the link). Same
+// spectral_efficiency contract and the same pessimistic-bound caveat as above.
+double RayleighQam64Ber(double power_w, double noise_w, double spectral_efficiency)
 {
-  const double spectral_efficiency = 72e6 / 20e6;
   const double ebno = (power_w / noise_w) / spectral_efficiency;
   auto term = [ebno](double c) {
     return 1.0 - std::sqrt((c / 7.0) * ebno / (1.0 + (c / 7.0) * ebno));
@@ -146,8 +172,14 @@ double RayleighQam64Ber(double power_w, double noise_w)
 // records never formed, and the pursuit manoeuvre could never arm.
 // HMRNetSim.cc, which this node was ported from, never did this — it gates on
 // the SNR>=2 dB boundary (PDR 1.0 below, 1e-8 above) and publishes ber/per as
-// diagnostics only. Do not reintroduce message-level BER gating without also
-// making BER a function of the selected tier.
+// diagnostics only.
+//
+// Generation 9 made BER a function of the selected tier, which is the second
+// half of the condition this note used to set for reintroducing BER gating. The
+// first half still stands and is the binding one: DO NOT gate delivery on BER.
+// The bandwidth state machine is the only authority on whether a message gets
+// through, and a second, independent loss mechanism on top of it is what
+// produced the 7-of-3544 beacon result above.
 
 std::string ToLower(std::string s)
 {
@@ -240,6 +272,12 @@ public:
     // Residual loss on a link the state machine reports as up, matching
     // HMRNetSim.cc's PDR of 1e-8 above the SNR>=2 dB boundary.
     residual_pdr_ = declare_parameter<double>("residual_pdr", 1e-8);
+    // A pose older than this (in the node's own clock, so sim time when
+    // use_sim_time is set) does not describe where the robot is now, and a link
+    // model run on it reports a link that may not exist. Links touching a stale
+    // endpoint go invalid: no delivery, and a zeroed diagnostic row. Set <= 0
+    // to restore the pre-generation-9 behaviour of trusting a pose forever.
+    pose_timeout_s_ = declare_parameter<double>("pose_timeout_s", 2.0);
     reliable_queue_max_bytes_ = static_cast<size_t>(
       declare_parameter<int64_t>("reliable_queue_max_bytes", 64LL * 1024 * 1024));
     rx_qos_depth_ = static_cast<size_t>(declare_parameter<int64_t>("rx_qos_depth", 100));
@@ -273,6 +311,8 @@ public:
     const size_t n = robot_names_.size();
     poses_.resize(n);
     has_pose_.assign(n, false);
+    pose_last_s_.assign(n, 0.0);
+    pose_topics_.assign(n, std::string());
     for (size_t i = 0; i < n; ++i) {
       name_to_idx_[robot_names_[i]] = i;
     }
@@ -295,8 +335,13 @@ public:
                        msg->pose.pose.position.y,
                        msg->pose.pose.position.z};
           has_pose_[i] = true;
+          // Receipt time, not msg->header.stamp: the freshness question is
+          // "did this stream stall", which a publisher stamping stale headers
+          // would hide. The two agree to within a transport hop in the sim.
+          pose_last_s_[i] = get_clock()->now().seconds();
         });
       pose_subs_.push_back(sub);
+      pose_topics_[i] = topic;
       RCLCPP_INFO(get_logger(), "Pose source for '%s': %s",
         robot_names_[i].c_str(), topic.c_str());
     }
@@ -534,20 +579,53 @@ private:
     out.layout.dim[1].stride = kLinkStateCols;
     out.data.reserve(n_pairs * kLinkStateCols);
 
+    // Freshness is a property of a robot, evaluated once per tick, so that all
+    // n-1 links touching a stalled robot agree and so the warning fires once
+    // per robot rather than once per pair.
+    const double now_s = get_clock()->now().seconds();
+    std::vector<char> fresh(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+      if (!has_pose_[i]) {
+        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+          "No pose EVER received for '%s' on %s — every link touching it is "
+          "invalid and carries nothing. This is a bring-up fault, not a radio "
+          "result: check the odom bridge before trusting this run.",
+          robot_names_[i].c_str(), pose_topics_[i].c_str());
+        continue;
+      }
+      const double age = now_s - pose_last_s_[i];
+      if (pose_timeout_s_ > 0.0 && age > pose_timeout_s_) {
+        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+          "Pose for '%s' is %.1f s stale (> pose_timeout_s=%.1f) on %s — links "
+          "touching it are invalid until it resumes.",
+          robot_names_[i].c_str(), age, pose_timeout_s_, pose_topics_[i].c_str());
+        continue;
+      }
+      fresh[i] = 1;
+    }
+
     for (size_t i = 0; i < n; ++i) {
       for (size_t j = i + 1; j < n; ++j) {
         PairState & ps = pair_states_[PairKey(i, j)];
-        if (!has_pose_[i] || !has_pose_[j]) {
+        if (!fresh[i] || !fresh[j]) {
           ps.valid = false;
           ps.connected = false;
         } else {
           ComputePair(i, j, ps);
         }
-        const double row[kLinkStateCols] = {
-          static_cast<double>(i), static_cast<double>(j),
-          ps.distance_m, ps.trees_on_link, ps.path_loss_db, ps.snr_db,
-          ps.ber, ps.bandwidth_mbps, ps.connected ? 1.0 : 0.0};
-        out.data.insert(out.data.end(), row, row + kLinkStateCols);
+        // An invalid row publishes zeros, never the last good computation: a
+        // frozen pose otherwise keeps path_loss_db > 0 forever, which is
+        // exactly what the downstream "path_loss_db <= 0" startup mask reads as
+        // a real link. Readers that predate the valid column still see zeros.
+        const std::array<double, kLinkStateCols> row = ps.valid
+          ? std::array<double, kLinkStateCols>{
+              static_cast<double>(i), static_cast<double>(j),
+              ps.distance_m, ps.trees_on_link, ps.path_loss_db, ps.snr_db,
+              ps.ber, ps.bandwidth_mbps, ps.connected ? 1.0 : 0.0, 1.0}
+          : std::array<double, kLinkStateCols>{
+              static_cast<double>(i), static_cast<double>(j),
+              0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0};
+        out.data.insert(out.data.end(), row.begin(), row.end());
       }
     }
     link_states_pub_->publish(out);
@@ -582,9 +660,27 @@ private:
     const double rx_dbm = tx_power_dbm_ - path_loss;
     const double snr_db = rx_dbm - noise_floor_dbm_;
 
-    double ber = trees_on_link == 0 ?
-      AwgnQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_floor_dbm_)) :
-      RayleighQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_floor_dbm_));
+    // Tier first, then BER at that tier. NextBandwidth reads only snr_history
+    // and ps.bandwidth_mbps and writes only snr_history, so this reordering
+    // leaves the selected tier — and therefore every delivery decision —
+    // bit-identical to generation 8. Only the ber column moves.
+    ps.bandwidth_mbps = NextBandwidth(ps, snr_db);
+    ps.connected = ps.bandwidth_mbps > 0.0;
+
+    double ber;
+    if (ps.bandwidth_mbps <= 0.0) {
+      // No gear engaged: there is no rate to define a bit error rate at, and
+      // nothing is getting through. 1.0, the same value an invalid row
+      // publishes, rather than a number computed at a rate the link is not
+      // using. Every consumer of this column should already be masking on
+      // connected; this makes an unmasked read wrong in the safe direction.
+      ber = 1.0;
+    } else {
+      const double spectral_efficiency = ps.bandwidth_mbps * 1e6 / kChannelBandwidthHz;
+      ber = trees_on_link == 0 ?
+        AwgnQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_floor_dbm_), spectral_efficiency) :
+        RayleighQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_floor_dbm_), spectral_efficiency);
+    }
     ber = std::clamp(ber, 0.0, 1.0);
 
     ps.distance_m = distance;
@@ -592,8 +688,6 @@ private:
     ps.path_loss_db = path_loss;
     ps.snr_db = snr_db;
     ps.ber = ber;
-    ps.bandwidth_mbps = NextBandwidth(ps, snr_db);
-    ps.connected = ps.bandwidth_mbps > 0.0;
     ps.valid = true;
   }
 
@@ -862,7 +956,8 @@ private:
       ss << (i ? "," : "") << "\"" << robot_names_[i] << "\"";
     }
     ss << "],\"link_state_columns\":[\"i\",\"j\",\"distance_m\",\"trees_on_link\","
-          "\"path_loss_db\",\"snr_db\",\"ber\",\"bandwidth_mbps\",\"connected\"]}";
+          "\"path_loss_db\",\"snr_db\",\"ber\",\"bandwidth_mbps\",\"connected\","
+          "\"valid\"]}";
     std_msgs::msg::String msg;
     msg.data = ss.str();
     robot_index_pub_->publish(msg);
@@ -905,7 +1000,7 @@ private:
       airtime_tokens_);
   }
 
-  static constexpr size_t kLinkStateCols = 9;
+  static constexpr size_t kLinkStateCols = 10;
 
   // parameters
   std::vector<std::string> robot_names_;
@@ -916,13 +1011,16 @@ private:
   double p0_db_, tree_attenuation_db_, max_range_m_, fade_sigma_db_, fade_alpha_;
   double link_rate_hz_, delay_ms_, airtime_capacity_, airtime_burst_s_;
   double residual_pdr_;
+  double pose_timeout_s_;
   size_t reliable_queue_max_bytes_;
   size_t rx_qos_depth_;
 
   // world + poses
   std::map<std::string, size_t> name_to_idx_;
   std::vector<Vec3> poses_;
-  std::vector<bool> has_pose_;
+  std::vector<bool> has_pose_;        // a pose was received at some point
+  std::vector<double> pose_last_s_;   // node-clock seconds of the last one
+  std::vector<std::string> pose_topics_;
   std::vector<Vec3> trees_;
   std::vector<rclcpp::SubscriptionBase::SharedPtr> pose_subs_;
 
