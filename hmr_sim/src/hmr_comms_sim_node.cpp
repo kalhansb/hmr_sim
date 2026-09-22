@@ -998,6 +998,11 @@ private:
     RCLCPP_INFO(get_logger(), "relay totals: %lu delivered, %lu dropped, airtime=%.3fs",
       static_cast<unsigned long>(total_relayed), static_cast<unsigned long>(total_dropped),
       airtime_tokens_);
+    // The same per-link, per-reason cumulative counters as ~/stats, into comms.log.
+    // Campaigns run --record 0, so the topic is never bagged and the totals line
+    // above was the only trace: no drop could be pinned to a link or a gate.
+    // Separate line so the totals line (manoeuvre_events.py RE_RELAY) is unchanged.
+    RCLCPP_INFO(get_logger(), "link counters: %s", msg.data.c_str());
   }
 
   static constexpr size_t kLinkStateCols = 10;
