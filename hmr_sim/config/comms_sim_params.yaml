@@ -23,10 +23,13 @@ hmr_comms_sim:
     # ones (pointclouds, odometry). e.g. ["velodyne_points"]
     #
     # Needs the planner's coord_intent_pub_topic/coord_intent_sub_topics and
-    # team_world_pub_topic/team_world_sub_topics, else no relay forms. Keep
-    # intents listed with team_world off. Never reliable: a late message resets
-    # peer TTL. (notes: comms-best-effort-intents-team-world)
-    best_effort_topics: ["exploration/intents", "exploration/team_world"]
+    # team_world_pub_topic/team_world_sub_topics (gen 33) or
+    # team_beacon_pub_topic/team_beacon_sub_topics (gen 34), else no relay
+    # forms. A listed topic nobody publishes stays pending and costs nothing,
+    # so one list serves both generations. Never reliable: a late message
+    # resets peer TTL. (notes: comms-best-effort-intents-team-world)
+    best_effort_topics: ["exploration/intents", "exploration/team_world",
+                         "exploration/team_beacon"]
 
     # --- radio / propagation (forest model, IEEE 9260568) -------------------
     tx_power_dbm: 30.0        # matches the old RobotNetworkConfig default
@@ -69,6 +72,10 @@ hmr_comms_sim:
     airtime_capacity: 0.6
     airtime_burst_s: 0.25     # max accumulated idle airtime (burst allowance)
     retx_cap: 4.0             # cap on the reliable retransmission cost factor
+    # true: best-effort messages skip the airtime admission check (they are
+    # still charged, so they slow the reliable queues). Gen 34 runs set it from
+    # the run script so the small team beacon survives a map backlog.
+    best_effort_priority: false
 
     # --- reliable backlog bound --------------------------------------------
     reliable_queue_max_bytes: 67108864  # 64 MiB per directional link

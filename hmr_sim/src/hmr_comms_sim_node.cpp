@@ -31,6 +31,12 @@
 //                   Airtime cost is bits / the CURRENT TIER: a bad link is slow.
 //     best_effort — dropped when the link is down or when the shared channel has
 //                   no airtime; otherwise delivered, less residual_pdr.
+//                   With best_effort_priority=true the airtime check is skipped
+//                   (the message is still charged, so it slows the reliable
+//                   queues): small control traffic such as the gen-34 team
+//                   beacon then reaches a connected peer even while a map
+//                   backlog holds the channel in debt. Default false keeps the
+//                   earlier behaviour.
 //   Both policies take delivery from the bandwidth state machine alone, as in
 //   HMRNetSim.cc: gear 0 means nothing gets through, any other gear means
 //   essentially everything gets through at that gear's speed. ber/per are
@@ -222,6 +228,8 @@ public:
     delay_ms_ = declare_parameter<double>("delay_ms", 2.5);
     airtime_capacity_ = declare_parameter<double>("airtime_capacity", 1.0);
     airtime_burst_s_ = declare_parameter<double>("airtime_burst_s", 0.1);
+    // Best-effort messages bypass the airtime admission check (still charged).
+    best_effort_priority_ = declare_parameter<bool>("best_effort_priority", false);
     // Residual loss on a link the state machine reports as up, matching
     // HMRNetSim.cc's PDR of 1e-8 above the SNR>=2 dB boundary.
     residual_pdr_ = declare_parameter<double>("residual_pdr", 1e-8);
@@ -798,7 +806,7 @@ private:
         continue;
       }
       RefillAirtime();
-      if (airtime_tokens_ <= 0.0) {
+      if (!best_effort_priority_ && airtime_tokens_ <= 0.0) {
         ++stats.drop_airtime;
         continue;
       }
@@ -961,6 +969,7 @@ private:
   double p0_db_, tree_attenuation_db_, max_range_m_, fade_sigma_db_, fade_alpha_;
   double link_rate_hz_, delay_ms_, airtime_capacity_, airtime_burst_s_;
   double residual_pdr_;
+  bool best_effort_priority_ = false;
   double pose_timeout_s_;
   size_t reliable_queue_max_bytes_;
   size_t rx_qos_depth_;

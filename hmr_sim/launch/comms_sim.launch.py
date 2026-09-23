@@ -24,6 +24,9 @@ Optional:
   tx_power_dbm:=24.0                  (default: the params file's value, 30.0)
                                       the experiment's severity dial: lower =
                                       more time disconnected. See plan §4.
+  best_effort_priority:=true          (default: the params file's value, false)
+                                      best-effort messages skip the airtime
+                                      admission check (still charged)
 
 Radio/relay parameters live in the params file; robot_names, world_sdf, seed and
 tx_power_dbm resolved here are injected on top of it.
@@ -177,6 +180,19 @@ def generate_launch_description():
                              f"got '{cli['reliable_queue_max_bytes']}'")
         print(f'--- comms_sim reliable_queue_max_bytes override: '
               f'{overrides["reliable_queue_max_bytes"]} bytes ---')
+
+    # Gen 34's team beacon is small control traffic that must reach a connected
+    # peer while a map backlog holds the channel in airtime debt. The run script
+    # sets it per run so the manifest records it; absent, the params file's
+    # value stands.
+    if 'best_effort_priority' in cli:
+        v = cli['best_effort_priority'].lower()
+        if v not in ('1', 'true', 'yes', 'on', '0', 'false', 'no', 'off'):
+            raise ValueError('best_effort_priority:= must be a boolean, '
+                             f"got '{cli['best_effort_priority']}'")
+        overrides['best_effort_priority'] = as_bool(v)
+        print(f'--- comms_sim best_effort_priority override: '
+              f'{overrides["best_effort_priority"]} ---')
 
     return LaunchDescription([
         Node(
