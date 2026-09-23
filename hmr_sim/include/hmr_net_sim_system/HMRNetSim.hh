@@ -2,6 +2,7 @@
 #define HMR_NET_SIM_SYSTEM__HMR_NET_SIM_HH_
 
 // The only required include in the header for systems
+// Moved comments: docs/hmr_sim_code_notes.md
 #include <gz/sim/EventManager.hh>
 #include <gz/sim/System.hh>
 
@@ -154,11 +155,8 @@ namespace hmr_net_sim_system
       std::map<std::string, std::map<std::string, double>> prevBandwidth;
   };
 
-  // This is the main plugin's class. It must inherit from System and at least
-  // one other interface.
-  // Here we use `ISystemPostUpdate`, which is used to get results after
-  // physics runs. The opposite of that, `ISystemPreUpdate`, would be used by
-  // plugins that want to send commands.
+  // The main plugin class; it must inherit from System and at least one other
+  // interface. (notes: hmr-net-sim-plugin-class)
   class HMRNetSim:
     public gz::sim::System,
     public gz::sim::ISystemConfigure,

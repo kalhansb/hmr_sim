@@ -1,23 +1,10 @@
 # Two-robot LIDAR-ONLY scenario for the DENSE flatforest world.
 #
-# Identical to flatforest_2robot_lidar.yaml in every respect except the world:
-# same robots, same sensors, same spawn poses, so a comparison against the
-# sparse world isolates stem density and nothing else.
-#
-# The world is flatforest_dense (250 stems/ha against flatforest's 74), which
-# exists because the sparse stand cannot break the shipped 30 dBm radio —
-# measured over a 300 s run, the pair stayed connected for 100 % of 1580 link
-# samples with a minimum SNR of 18.6 dB against a 2 dB cutoff. That is why
-# every earlier "comms severity" level in the reconnection experiment was
-# produced by detuning transmit power, which is not a variable a field
-# experiment has. Here the link fails on geometry: about 3.9 trunks land in the
-# Fresnel corridor of a 50 m link, which is the ~3.8 needed to reach cutoff.
-#
-# Before running anything that TERMINATES on coverage in this world, re-measure
-# the unknown-fraction floor. flatforest's 0.4922 floor and 0.55 criterion were
-# calibrated against 74 stems/ha and do not transfer: three times the trunks
-# means more permanently-shadowed voxels and a higher floor. "No criterion
-# window exists any more" is a real possible outcome here.
+# Identical to flatforest_2robot_lidar.yaml except the world (250 stems/ha,
+# where links fail on trunk occlusion). Re-measure the unknown-fraction floor
+# before coverage-terminated runs; flatforest's criterion does not transfer.
+# (notes: scenario-flatforest-dense-2robot)
+# Moved comments: docs/hmr_sim_code_notes.md
 world: flatforest_dense
 
 robots:

@@ -1,72 +1,11 @@
 # 2-robot LIDAR-ONLY scenario for the CMU forest stand with the buildings
 # removed (world cmu_forest_nb).
 #
-# Identical to cmu_forest_2robot_lidar.yaml in every respect except the world,
-# and that world is cmu_forest with its three house models deleted and nothing
-# else touched: same 234 oaks, same 108 pines, same poses, same perimeter fence.
-#
-# WHY THE BUILDINGS ARE GONE. The ts1c N=2 pilot lost a cell: a robot sat at
-# (-6.95, -42.68) for 2558 sim-seconds and ended censored_at_T, at a spot an
-# earlier plateau probe had pinned on a DIFFERENT seed 0.28 m away. Both sites
-# are 1.64 m from house_2's west wall. Both were on the `off` arm, which makes
-# the trap differential across the contrast rather than merely expensive.
-#
-# WHAT WAS RULED OUT. The natural reading, that the stand pinches into dead
-# ends, does not survive its control. Modelled the way the global planning map
-# actually sees the world (obstacle triangles in the z range [0.05, 1.00] body
-# slab; 1.60 m clearance required, from inflation 1.5 m at 0.40 m/cell against
-# the local planner's 0.80 m), 19.4% of cmu_forest's free ROI lies behind a
-# throat too narrow for the global planner to route out of. flatforest_dense
-# scores 28.0% on the identical measure and produced ZERO stalls over 300 s in
-# 711 robot-runs. Corridor geometry does not predict stalling; cutting trees
-# would have changed the stand and fixed nothing.
-#
-# The buildings are what the two worlds actually differ in, and every large
-# pocket in cmu_forest sits on a house face. Deleting them opens the observed
-# site from a 1.40 m throat to 1.79 m and moves total pocket area 19.4% to
-# 18.0%, i.e. the stand is left as it was.
-#
-# The stand-vs-flatforest comparison this world exists for is UNCHANGED: 234
-# oaks and 108 pines over 150 x 150 m, 152 stems/ha inside the ROI against
-# flatforest_dense's ~250, clumped rather than uniform, mean nearest-neighbour
-# stem spacing 6.56 m. The perimeter fence stays and is still outside the ROI
-# (all 80 walls at r >= 68.7 m).
-#
-# COVERAGE THRESHOLD, MEASURED HERE 2026-09-11, USE 0.58 AND NOT 0.64.
-# Two probe cells (prefix cfnb_plateau, off arm, seeds 801/802) ran the full
-# 3000 s at done_unknown_fraction=0.01 so they traverse the whole curve and the
-# crossing is read off the series afterwards. Both therefore end censored_at_T
-# by design.
-#
-# The curve is a STAIRCASE, not a smooth decay: long flats punctuated by
-# map-merge steps, so a threshold is never approached, it is jumped over, and
-# two thresholds inside one flat are the same experiment under two names. In
-# seed801 every threshold from 0.68 down to 0.52 latches within 41 s of itself,
-# at t = 1565 to 1606. seed802 has two cliffs instead of one, at t ~ 1010 and
-# t ~ 1755.
-#
-# That second cliff is what rules out the inherited 0.64. It latches seed802 at
-# t=1010 with u=0.6371 while the team still goes on to reach 0.4917, i.e. it
-# stops the cell with 0.145 of the map still recoverable and BEFORE the larger
-# of the two merge events. It is not measuring a plateau, it is measuring which
-# side of a cliff the run happened to be on.
-#
-# 0.58 latches at t=1595 and t=1750, both at the knee: the per-300 s rate is
-# flat to three decimals from t=1820 onward in seed801 and near-flat in seed802.
-# It clears the slowest robot's 3000 s value by +0.067 and +0.069, which is the
-# same margin flatforest_dense2 was accepted on (+0.0698).
-#
-# KNIFE EDGE, STATED RATHER THAN HIDDEN: because the curve is a staircase,
-# 0.60 lands seed802 on the early cliff and 0.58 on the late one, a 730 s
-# difference for a 0.02 change in threshold. Every threshold sits on some
-# cliff for some seed; this is a property of merge-driven coverage, not of this
-# number. n=2 probes.
-#
-# Floor, for the record: 0.4917 and 0.4939 at 3000 s, against cmu_forest's
-# 0.5139 -- and cmu_forest's was measured with atlas stuck in the house_2 trap
-# for 1297 s, so it was never the achievable floor to begin with. Anything at
-# or below 0.51 never latches: the SLOWER robot of each pair ends at 0.5134 and
-# 0.5111, and the criterion is per-robot.
+# Identical to cmu_forest_2robot_lidar.yaml except the world: cmu_forest with
+# its three house models deleted, nothing else changed. For coverage termination
+# here use done_unknown_fraction 0.58, not 0.64.
+# (notes: scenario-cmu-forest-nb-2robot)
+# Moved comments: docs/hmr_sim_code_notes.md
 world: cmu_forest_nb
 
 robots:

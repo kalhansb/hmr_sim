@@ -1,32 +1,10 @@
 // ROS2 <-> Gazebo Generic Bridge Node
 //
-// A bidirectional bridge between ROS2 and Gazebo transport that serializes
-// ROS2 messages to binary (CDR format) and transports them as
-// gz::msgs::StringMsg payloads over Gazebo transport, and vice versa.
-//
-// This allows bridging ANY ROS2 message type without needing corresponding
-// Gazebo protobuf message definitions or custom type conversion code.
-//
-// ROS2 → GZ:
-//   Subscribes to ROS2 topics using generic subscriptions (CDR serialized),
-//   wraps the binary payload in a gz::msgs::StringMsg, and publishes to
-//   Gazebo transport topics.
-//
-// GZ → ROS2:
-//   Subscribes to Gazebo transport topics for gz::msgs::StringMsg payloads,
-//   unwraps the binary CDR data, and publishes to ROS2 topics using generic
-//   publishers.
-//
-// Example: bridging octomap_msgs/msg/Octomap between ROS2 and Gazebo
-//
-// Parameters:
-//   ros2_to_gz_ros_topics:  ROS2 source topic names
-//   ros2_to_gz_gz_topics:   Gazebo destination topic names
-//   ros2_to_gz_ros_types:   ROS2 message type strings
-//
-//   gz_to_ros2_gz_topics:   Gazebo source topic names
-//   gz_to_ros2_ros_topics:  ROS2 destination topic names
-//   gz_to_ros2_ros_types:   ROS2 message type strings
+// Bidirectional ROS2 <-> Gazebo bridge for any ROS2 message type:
+// CDR-serialized bytes travel as gz::msgs::StringMsg payloads. Each
+// direction takes three equal-length lists: topics on each side and the
+// ROS2 type. (notes: gz-bridge-overview)
+// Moved comments: docs/hmr_sim_code_notes.md
 
 #include <rclcpp/rclcpp.hpp>
 #include <gz/transport/Node.hh>

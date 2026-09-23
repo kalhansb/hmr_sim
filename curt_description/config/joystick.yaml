@@ -3,25 +3,7 @@
 # LB for enable
 # RB for enable-turbo
 #
-#         (LB)                                 (RB)
-#         (LT)                                 (RT)
-#       _=====_            D(  .)X            _=====_
-#      / _____ \                             / _____ \
-#    +.-'_____'-.---------------------------.-'_____'-.+
-#   /   |     |  '.                       .'  |      |   \
-#  / ___| /|\ |___ \ (back)(Lgtc)(strt)  / ___| (Y)  |___ \
-# / |      |      | ;  __           __  ; |              | |
-# | | <---   ---> | | (__) .       (__) | | (X)       (B)| |
-# | |___   |   ___| ; MODE         VIBE ; |___       ____| /
-# |\    | \|/ |    /  _     ___      _   \    | (A) |    /|
-# | \   |_____|  .','" "', |___|  ,'" "', '.  |_____|  .' |
-# |  '-.______.-' /       \ANALOG/       \  '-._____.-'   |
-# |               |  LJ   |------|   RJ  |                |
-# |              /\       /      \       /\               |
-# |             /  '.___.'        '.___.'  \              |
-# |            /                            \             |
-#  \          /                              \           /
-#   \________/                                \_________/
+# F710 gamepad layout diagram. (notes: joystick-f710-diagram)
 #
 # BUTTON         Value
 #   LB             4
@@ -40,6 +22,7 @@
 # Right Trigger    5
 # D-pad Horiz.     6
 # D-pad Vert.      7
+# Moved comments: doc/curt_description_code_notes.md
 
 joy_teleop/teleop_twist_joy_node:
   ros__parameters:

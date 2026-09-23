@@ -1,19 +1,9 @@
 // HMR Comms Relay Node
-// A ROS2 node that simulates a communications pipeline between robots.
-// It subscribes to each robot's topics, reads network metrics from the
-// HMRNetSim Gazebo plugin (bridged to ROS2), and relays or drops messages
-// based on PER, PDR, and bandwidth.
-//
-// Topic convention:
-//   Robot publishes on:  /<robot>/<comms_topic>        (existing topic)
-//   Receiver gets on:    /<receiver>/rx/<sender>/<comms_topic>
-//
-// Parameters:
-//   robot_names:   list of robot name strings, e.g. ["atlas", "bestla"]
-//   comms_topics:  list of topic name strings, e.g. ["rgbd_camera/points", "velodyne_points"]
-//
-// The node auto-discovers message types from the actual topic publishers,
-// so no message type configuration is needed.
+// Relays /<robot>/<comms_topic> to /<receiver>/rx/<sender>/<comms_topic>,
+// dropping messages by the bandwidth the HMRNetSim Gazebo plugin publishes.
+// Message types are auto-discovered from the publishers.
+// (notes: relay-node-overview)
+// Moved comments: docs/hmr_sim_code_notes.md
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>

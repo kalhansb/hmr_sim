@@ -1,3 +1,4 @@
+# Moved comments: docs/hmr_sim_code_notes.md
 """World registry for hmr_sim robot_sim.launch.py.
 
 Single source of truth mapping world short-names to the SDF file on disk
@@ -22,15 +23,10 @@ WORLDS = {
             (3.0,  0.0, 0.5, 0.0),
         ],
     },
-    # Same walled 104x104 m stand as flatforest, densified from 74 to 250
-    # stems/ha by densify_forest.py. Exists because the sparse world cannot
-    # break the shipped 30 dBm radio (measured: 100 % connected, min SNR
-    # 18.6 dB against a 2 dB cutoff), which is why every earlier "comms
-    # severity" level was faked by detuning transmit power. Here the link
-    # drops on geometry alone once the robots are ~50 m apart.
-    # Its coverage floor is NOT flatforest's: more trunks mean more
-    # permanently-shadowed voxels, so re-calibrate done_unknown_fraction
-    # against this world before running anything that terminates on it.
+    # Same walled 104x104 m stand as flatforest, densified to 250 stems/ha by
+    # densify_forest.py so the link can drop on geometry. Its coverage floor
+    # is not flatforest's: re-calibrate done_unknown_fraction for this world.
+    # (notes: world-flatforest-dense)
     'flatforest_dense': {
         'sdf_subdir': 'flatforest',
         'sdf_file': 'flatforest_dense.sdf',
@@ -41,35 +37,10 @@ WORLDS = {
             (3.0,  0.0, 0.5, 0.0),
         ],
     },
-    # Second dose point on the density axis: same walled 104x104 m stand,
-    # 433 stems (400/ha) against flatforest_dense's 270 (250/ha). Registered
-    # 2026-08-23 for the pb4d campaign pre-registered in §27 of
-    # comms_reconnection_experiment.md.
-    # WHY 400 AND NOT MORE POWER: the 250/ha world puts ~3.9 trunks in the
-    # Fresnel corridor of a 50 m link against the ~3.8 needed to reach the
-    # 2 dB cutoff -- i.e. it sits exactly on the cliff edge, where a link is
-    # decided by which side of one trunk the robot passes. 400/ha gives 6.21
-    # trunks, ~28 dB past cutoff, so outages are set by geometry rather than
-    # by a knife-edge. Transmit power was measured and rejected as the lever:
-    # a calibrated replay of NextBandwidth shows a 20 dB cut buys only +35 %
-    # triggerable outages.
-    # Spawn clearances at the two poses actually used are 2.75 m and 2.13 m,
-    # IDENTICAL to flatforest_dense, which ran 120 cells without a spawn
-    # failure. Only the unused (0, -3) tightened, 5.35 -> 3.70 m.
-    # SAME FLOOR WARNING AS ABOVE, AND IT BITES HARDER: pb3g2 cleared its
-    # done_unknown_fraction=0.60 criterion by only +0.0989 (lowest reached
-    # 0.5011 over 30 off cells, planner-CSV source). 1.6x the trunks shadow
-    # more voxels permanently and can eat that margin outright, at which
-    # point completion time stops measuring exploration and starts measuring
-    # the stopping rule.
-    # MEASURED HERE 2026-08-23, and it clears: 3 smoke cells (prefix fd2s)
-    # reach 0.5302 / 0.5355 / 0.5504, so the floor is at or below 0.5302 and
-    # 0.60 has +0.0698 of open water. All three crossed 0.60 -- at 1838 s,
-    # 3165 s and 3565 s. The smoke ran at done_unknown_fraction=0.30 on
-    # purpose so cells traverse the whole curve and the crossing is read off
-    # the series afterwards; every cell therefore ends censored_at_T, which
-    # is the design and not a failure. Re-measure with a throwaway prefix and
-    # scratchpad/floor2.py if this world is ever regenerated.
+    # Same walled 104x104 m stand at 400 stems/ha, so outages are set by
+    # geometry rather than a knife-edge. More trunks raise the coverage floor:
+    # re-measure it before trusting done_unknown_fraction if this world is
+    # regenerated. (notes: world-flatforest-dense2)
     'flatforest_dense2': {
         'sdf_subdir': 'flatforest',
         'sdf_file': 'flatforest_dense2.sdf',
@@ -90,30 +61,9 @@ WORLDS = {
             (3.0,  0.0, 0.5, 0.0),
         ],
     },
-    # cmu_forest with the three houses deleted and NOTHING else changed.
-    # Registered 2026-09-11 after the ts1c N=2 pilot lost a cell to a robot
-    # that sat 1.64 m from cmu_house_2's west wall for 2558 sim-seconds, at a
-    # spot an earlier probe had pinned on a different seed 0.28 m away. Both
-    # events were on the `off` arm, so the trap was not merely expensive, it
-    # was differential across the contrast.
-    # The stand is NOT the cause and was left alone: modelled as the global
-    # planning map sees it, 19.4% of cmu_forest's free ROI sits behind a
-    # throat below the planner's 1.60 m requirement, but flatforest_dense
-    # scores 28.0% on the same measure with ZERO stalls over 300 s in 711
-    # robot-runs. Corridor width does not predict stalling. Deleting the
-    # houses opens the observed site from a 1.40 m to a 1.79 m throat and
-    # moves total pocket area only 19.4% -> 18.0%.
-    # FLOOR MEASURED HERE 2026-09-11: use done_unknown_fraction=0.58, NOT the
-    # inherited 0.64. Two probe cells (cfnb_plateau, off arm, seeds 801/802,
-    # 3000 s at done_unknown=0.01) reach 0.4917 and 0.4939, against
-    # cmu_forest's 0.5139 -- and cmu_forest's was measured with atlas stuck in
-    # the house_2 trap for 1297 s, so it was never the achievable floor.
-    # The curve is a staircase driven by map merges, and 0.64 lands seed802 on
-    # the EARLY cliff: it latches at t=1010 with 0.145 of the map still
-    # recoverable. 0.58 latches both seeds at the knee (t=1595 and t=1750) and
-    # clears the slower robot's 3000 s value by +0.067. See the long note in
-    # config/scenarios/cmu_forest_nb_2robot_lidar.yaml for the full table and
-    # for the knife-edge caveat that comes with any threshold on a staircase.
+    # cmu_forest with the three houses deleted and nothing else changed. Its
+    # coverage floor differs from cmu_forest's: use done_unknown_fraction
+    # 0.58, not the inherited 0.64. (notes: world-cmu-forest-nb)
     'cmu_forest_nb': {
         'sdf_subdir': 'cmu_forest',
         'sdf_file': 'cmu_forest_nb.sdf',

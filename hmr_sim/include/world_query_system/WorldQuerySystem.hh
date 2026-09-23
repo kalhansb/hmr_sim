@@ -1,3 +1,4 @@
+// Moved comments: docs/hmr_sim_code_notes.md
 #ifndef WORLD_QUERY_SYSTEM__WORLDQUERYSYSTEM_HH_
 #define WORLD_QUERY_SYSTEM__WORLDQUERYSYSTEM_HH_
 
@@ -10,12 +11,8 @@
 
 namespace world_query_system
 {
-  /// \brief Gazebo system plugin that queries occupancy and semantic labels
-  /// for a grid of 3D points using multi-directional raycasting.
-  ///
-  /// Casts 6 rays (±X, ±Y, ±Z) from each query point. A point is "occupied"
-  /// if any ray hits within ray_length. Semantic label comes from the nearest
-  /// hit visual's Label user data.
+  /// Gazebo system plugin that queries occupancy and semantic labels for a set
+  /// of 3D query points. (notes: world-query-occupancy-method)
   ///
   /// ## SDF Parameters
   ///

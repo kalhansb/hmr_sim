@@ -1,63 +1,10 @@
 # Two-robot LIDAR-ONLY scenario for the VERY DENSE flatforest world.
 #
-# Identical to flatforest_dense_2robot_lidar.yaml in every respect except the
-# world: same robots, same sensors, same spawn poses, same 30 dBm radio. A
-# comparison against flatforest_dense isolates stem density and nothing else,
-# which is the whole point — see §27 of comms_reconnection_experiment.md, where
-# this pair is pre-registered as a two-level dose–response on environment
-# severity.
-#
-# WHY 400 STEMS/HA. flatforest_dense (250/ha) puts about 3.9 trunks in the
-# Fresnel corridor of a 50 m link against the ~3.8 needed to reach the 2 dB
-# cutoff — it sits exactly ON the cliff edge, so whether the radio is up is
-# decided by the AR(1) fade and by one trunk of geometric luck. Measured over
-# 29 untreated pb3g2 cells: disconnected 55.5 % of run time, median 16 outages
-# per run, and 0.0 % of disconnected samples with clear line of sight. This
-# world carries 6.21 trunks on the same link — about 2.3 trunks × 11.98 dB
-# ≈ 28 dB past cutoff — so connection becomes the exception that needs
-# favourable geometry rather than a coin flip.
-#
-# Transmit power stays at the shipped 30 dBm and is NOT a variable here.
-# run_campaign.sh:36 rules that out on physical grounds, and a calibrated
-# replay of the real NextBandwidth state machine (100.000 % agreement at 0 dB
-# offset) showed a 20 dB cut — a hundredfold power reduction — moves
-# triggerable outages only +35 %, because outage duration is set by how fast a
-# robot walks out of a tree shadow, not by link margin. Severity belongs to the
-# environment.
-#
-# SPAWN CLEARANCE IS VALIDATED, NOT ASSUMED. densify_forest.py places stems by
-# rejection sampling against other stems; nothing in it knows where robots
-# spawn, and at 5.4× flatforest's density that silence stops being evidence.
-# Measured: the two spawn poses used below have 2.75 m and 2.13 m to the
-# nearest trunk — byte-identical to flatforest_dense and flatforestv2, because
-# the nearest stem is an original that the densifier never moves. flatforest_
-# dense ran 116 cells at exactly those clearances with zero failures, so this
-# geometry is empirically sufficient rather than merely plausible.
-#
-# BEFORE RUNNING ANYTHING THAT TERMINATES ON COVERAGE, re-measure the
-# unknown-fraction floor. This is a blocking gate, not a courtesy: unknown
-# fraction decays to a floor set by permanently-shadowed voxels, and that floor
-# RISES with occlusion. flatforest_dense's 0.60 criterion cleared its floor by
-# +0.0989 (lowest reached 0.5011 over 30 off cells, planner-CSV source); 1.6×
-# the trunks can plausibly consume all of that. If the floor lands above the
-# criterion no run terminates and completion time measures the cap; if it lands
-# just below, completion time measures the stopping rule instead of the
-# exploration policy. Neither announces itself in a results table.
-#
-# THE MARGIN MOVED, AND THE OLD NUMBER IS WHY THIS IS WORTH READING TWICE. This
-# said +0.0699 / 0.5301 until 2026-08-23. Both readings are correct. The floor
-# is a MINIMUM over samples; the events log samples 6-8× sparser than the
-# planner CSV; a minimum over a sparse grid can only read HIGH. Same world,
-# same criterion, +0.0290 of margin — the size of floor2.py's own fail
-# threshold — decided purely by which file was read. See §29.57 and §29.62.
-#
-# HOW IT IS ENFORCED, because "check first" was an instruction to a human and
-# nothing ran it. The fd2s smoke is the throwaway prefix this paragraph asks
-# for; `floor2.py fd2s 0.60` is registered in fd2s_readouts.sh and now exits 1
-# rather than 0 when it fails; and gate_and_launch.sh's gate2 C1 independently
-# requires every smoke cell to actually REACH the criterion, which is strictly
-# stronger than "a floor exists below it" — but blind to the margin, which is
-# the number only floor2.py prints. Both, not either.
+# Identical to flatforest_dense_2robot_lidar.yaml except the world (400
+# stems/ha); transmit power stays 30 dBm. Re-measure the unknown-fraction floor
+# before any coverage-terminated run: it rises with occlusion.
+# (notes: scenario-flatforest-dense2-2robot)
+# Moved comments: docs/hmr_sim_code_notes.md
 world: flatforest_dense2
 
 robots:

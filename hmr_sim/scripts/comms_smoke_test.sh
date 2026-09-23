@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Smoke test for hmr_comms_sim_node: relay, link gating, reliable backlog.
+# Moved comments: docs/hmr_sim_code_notes.md
 set -u
 export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v miniconda | paste -sd:)
 unset PYTHONPATH CONDA_PREFIX CONDA_DEFAULT_ENV LD_LIBRARY_PATH 2>/dev/null || true
@@ -73,12 +74,10 @@ sleep 10  # let reliable backlog build (~2 Hz * ~15 s total down)
 
 # --- bring beta back --------------------------------------------------------
 echo "=== T5 reconnect: backlog must arrive late, not be lost ==="
-# Counter subscribes while the link is still down so the reconnect burst is
-# fully captured, then beta returns. 8 consecutive high samples at 5 Hz to
-# reconnect (~1.6 s), then the queue drains. Steady-state is ~2 msg/s; the
-# ~20 s of downtime backlog (~40 msgs) on top proves queueing.
-# --qos-depth 200: the burst arrives faster than the python echo drains its
-# subscriber queue; the default depth-10 reader history would shed most of it.
+# The counter subscribes while the link is still down so the whole reconnect
+# burst is captured; a count above steady state proves queueing. The reader
+# needs a deep queue (200): the default depth 10 would shed the burst.
+# (notes: smoke-t5-reconnect-burst)
 ( timeout 14 ros2 topic echo --qos-depth 200 /beta/rx/alpha/chatter_rel 2>/dev/null | grep -c hello_rel > "$OUT/t5_count" ) &
 T5_PID=$!
 sleep 2
@@ -109,12 +108,10 @@ TREE_PID=$!
 sleep 4
 kill $TREE_PID 2>/dev/null
 pkill -f 'lib/hmr_sim/hmr_comms_sim_nod[e]' 2>/dev/null
-# Ground truth is derived from the world file, not hardcoded, so this asserts
-# the PARSER rather than a number someone has to remember to update: 80 oaks as
-# top-level <model>s plus 8 pines carried as <include>s of model://cmu_pine_tree.
-# The pines are the regression guard — they were silently uncounted until
-# 2026-08-15 because the matcher tested only the include's instance name
-# ("pine_N"), which contains no configured substring.
+# The expected count is derived from the world file (oak models plus pine
+# includes of model://cmu_pine_tree), so this asserts the parser, not a
+# remembered number. The pines guard include matching.
+# (notes: smoke-t8-tree-parse-truth)
 T8_OAKS=$(grep -c '<model name="Oak tree' "$WORLD")
 T8_PINES=$(grep -c 'model://cmu_pine_tree' "$WORLD")
 T8_EXPECT=$((T8_OAKS + T8_PINES))

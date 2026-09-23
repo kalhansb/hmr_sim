@@ -1,3 +1,4 @@
+# Moved comments: docs/hmr_sim_code_notes.md
 """Robot registry for hmr_sim robot_sim.launch.py.
 
 Single source of truth mapping robot short-names to:
@@ -38,11 +39,9 @@ ROBOTS = {
         'default_use_imu': True,
     },
     'skadi': {
-        # Fourth UGV, added for the N=4 rung of the team-size series. The
-        # lidar-only sensor config is the default here rather than an
-        # rgbd/segmentation one because every scenario that names skadi wants
-        # the same sensing as the other three, and a default that disagrees
-        # with every call site is a trap for the next reader.
+        # Fourth UGV. Defaults to the lidar-only config so the default
+        # matches every scenario that names skadi.
+        # (notes: robot-registry-skadi)
         'type': 'ugv',
         'sdf_file': 'COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf',
         'features': {'lidar', 'imu', 'odom_gt', 'ugv_cmd_vel'},

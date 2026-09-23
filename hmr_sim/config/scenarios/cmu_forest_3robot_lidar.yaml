@@ -1,31 +1,10 @@
 # Three-robot LIDAR-ONLY scenario for the CMU forest world.
 #
-# Identical to flatforest_dense_3robot_lidar.yaml in every respect except the
-# world, and identical to cmu_forest_2robot_lidar.yaml in every respect except
-# that a third robot exists.
-#
-# atlas and bestla keep the exact spawn poses of the 2-robot scenario, so the
-# first two robots of a 3-robot run start where a 2-robot run of the same seed
-# starts them. Those poses are in turn the flatforest line unchanged, so a cell
-# here and the matching ts1b cell differ in the stand and in nothing else.
-#
-# Spawn geometry as in flatforest_dense_3robot_lidar.yaml: the three sit on the
-# y axis at -3 / 0 / +3 facing away from each other, all on
-# COSTAR_HUSKY_SENSOR_CONFIG_LIDAR so team size is the only thing that changed,
-# and the team STARTS connected -- longest initial link 6.00 m against the 30 m
-# horizon -- which the comms warm-up and the planner's peer discovery both
-# assume. Verified clear in this world: the tightest spawn clearance of the
-# three is 5.58 m (husky at y=-3 to an oak at 1.66, -8.33).
-#
-# The stand is 152 stems/ha inside the ROI against flatforest_dense's ~250, and
-# clumped rather than uniform, with mean nearest-neighbour stem spacing 6.56 m.
-# Sparser on the mean does not mean better connected: occlusion in a clumped
-# stand arrives in runs, so the outage COUNT can fall while outage DURATION
-# rises. Read the per-rung connectivity endpoints, not just the totals.
-#
-# BEFORE running anything that TERMINATES on coverage here, re-measure the
-# unknown-fraction floor -- ts1b's 0.64 was calibrated on flatforest_dense and
-# does not transfer. See the note in cmu_forest_2robot_lidar.yaml.
+# Identical to flatforest_dense_3robot_lidar.yaml except the world, and to
+# cmu_forest_2robot_lidar.yaml plus husky at y=-3. The team must start
+# connected. Re-measure the unknown-fraction floor before coverage-terminated
+# runs. (notes: scenario-cmu-forest-3robot)
+# Moved comments: docs/hmr_sim_code_notes.md
 world: cmu_forest
 
 robots:

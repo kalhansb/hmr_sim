@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Moved comments: docs/hmr_sim_code_notes.md
 """Generate a denser flatforest world, so the SHIPPED radio can actually fail.
 
 Why this exists. Every "comms severity" level measured in the reconnection
@@ -220,11 +221,10 @@ def main():
         return 1
     out_text = text[:idx] + header + "\n".join(blocks) + "\n" + text[idx:]
 
-    # The launcher addresses /world/<name>/create and /world/<name>/set_pose off
-    # the registry short-name, and _world_registry.py's contract is that the
-    # SDF's internal <world name> matches it. Leaving this as "flatforest" makes
-    # a dense-world run spawn robots into the service namespace of the sparse
-    # one — which fails late and looks like a sim bug, not a naming bug.
+    # The launcher addresses /world/<name>/create and set_pose by the registry
+    # short-name, so the SDF's <world name> must equal the name registered in
+    # _world_registry.py, or robots spawn into another world's services.
+    # (notes: densify-world-name-rewrite)
     if args.world_name:
         out_text, n_sub = re.subn(r'<world name="[^"]*"',
                                   f'<world name="{args.world_name}"',

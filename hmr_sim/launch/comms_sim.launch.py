@@ -1,3 +1,4 @@
+# Moved comments: docs/hmr_sim_code_notes.md
 """Launch hmr_comms_sim_node — the message-level wireless-link emulator.
 
 Reuses robot_sim.launch.py's conventions so a run is described the same way:
@@ -111,11 +112,10 @@ def generate_launch_description():
     params_file = cli.get(
         'params_file', os.path.join(share_dir, 'config', 'comms_sim_params.yaml'))
 
-    # Fading is a pure function of (seed, tick), so the seed IS the run's link
-    # realisation. Paired-seed designs need to vary it per run while holding
-    # everything else fixed, and editing the shared params file per run makes
-    # the arm and its pairing impossible to reconstruct afterwards. Absent, the
-    # params file's value stands.
+    # The seed argument overrides the params file's fading seed; fading is a
+    # pure function of (seed, tick), so the seed is the run's link realisation.
+    # Absent, the params file's value stands.
+    # (notes: comms-launch-seed-override)
     overrides = {
         'robot_names': robot_names,
         'world_sdf': world_sdf,
@@ -128,13 +128,10 @@ def generate_launch_description():
             raise ValueError(
                 f"seed:= must be an integer, got '{cli['seed']}'")
         print(f'--- comms_sim seed override: {overrides["seed"]} ---')
-    # tx_power_dbm is THE severity dial for the link model: everything
-    # downstream (SNR -> BER -> bandwidth tier -> connected) is monotone in it,
-    # so it is what a calibration sweep varies to place the outage rate where
-    # the experiment needs it. Exposed here so a run can record and reproduce
-    # its severity from the command line instead of by editing the installed
-    # params yaml, which leaves no trace in the run directory and silently
-    # re-scopes every run that follows.
+    # tx_power_dbm is the link model's severity dial: SNR, bandwidth tier and
+    # connected are monotone in it. Overridden per run from the command line so
+    # the run records its severity, not by editing the installed params yaml.
+    # (notes: comms-launch-tx-power-dial)
     if 'tx_power_dbm' in cli:
         try:
             overrides['tx_power_dbm'] = float(cli['tx_power_dbm'])
@@ -143,15 +140,10 @@ def generate_launch_description():
                 f"tx_power_dbm:= must be a number, got '{cli['tx_power_dbm']}'")
         print(f'--- comms_sim tx_power_dbm override: '
               f'{overrides["tx_power_dbm"]} dBm ---')
-    # tree_attenuation_db is the OTHER severity dial, and the two are not
-    # interchangeable: tx_power_dbm shifts every link by the same number of dB,
-    # while this one shifts a link in proportion to trees_on_link. Raising it
-    # therefore selects for occlusion-driven outages -- outages that happen
-    # because a trunk moved into the Fresnel zone, not because the robots drove
-    # apart -- which is the failure mode a forest reconnection experiment is
-    # supposed to be about. Exposed here for the same reason as tx_power_dbm:
-    # editing the installed params yaml leaves no trace in the run directory and
-    # silently re-scopes every run that follows.
+    # tree_attenuation_db is the second severity dial: it shifts a link in
+    # proportion to trees_on_link (occlusion-driven outages), while tx_power_dbm
+    # shifts every link equally. Overridable per run for the same provenance
+    # reason. (notes: comms-launch-tree-attenuation-dial)
     if 'tree_attenuation_db' in cli:
         try:
             overrides['tree_attenuation_db'] = float(cli['tree_attenuation_db'])
@@ -172,14 +164,10 @@ def generate_launch_description():
                 f"max_range_m:= must be a number, got '{cli['max_range_m']}'")
         print(f'--- comms_sim max_range_m override: '
               f'{overrides["max_range_m"]} m ---')
-    # Reliable-relay backlog cap. On overflow the node drops the OLDEST queued
-    # delta and never retransmits it, so the receiver's merged map is missing
-    # those voxels permanently. That is fatal to any experiment whose premise is
-    # "the backlog drains at contact" — the robot-known/team-observed gap can
-    # then never snap shut, and the receiver's unknown fraction is biased
-    # upwards for the rest of the run. It has to be settable per run because the
-    # required depth is the offered map-delta load times the longest outage, and
-    # both move with voxel resolution and tx_power_dbm.
+    # Reliable-relay backlog cap in bytes. On overflow the node drops the OLDEST
+    # queued delta and never retransmits it, so the receiver's map loses those
+    # voxels. Size it as map-delta load times the longest outage.
+    # (notes: comms-launch-reliable-queue-cap)
     if 'reliable_queue_max_bytes' in cli:
         try:
             overrides['reliable_queue_max_bytes'] = \

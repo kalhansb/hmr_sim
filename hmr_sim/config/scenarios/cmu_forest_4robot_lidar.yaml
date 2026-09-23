@@ -1,43 +1,10 @@
 # Four-robot LIDAR-ONLY scenario for the CMU forest world.
 #
-# Identical to flatforest_dense_4robot_lidar.yaml in every respect except the
-# world, and identical to cmu_forest_3robot_lidar.yaml in every respect except
-# that a fourth robot exists.
-#
-# The first three robots keep the exact spawn poses of the 2- and 3-robot
-# scenarios, so team size is the only thing that moves across the rungs. skadi
-# extends the line to y=+6 with the alternating yaw, so no robot starts by
-# driving into a neighbour.
-#
-# NOTE the registry default differs. hmr_sim's _world_registry.py lists
-# cmu_forest's default_spawn_points as (0,0), (0,3), (0,-3), (3,0), all at
-# yaw 0.0. That default is NOT used here, for two reasons: putting the fourth
-# robot at (3,0) breaks the line the earlier rungs established, and yaw 0.0 on
-# every robot points them all the same way, which the flatforest scenarios
-# deliberately avoid. Explicit poses in this file override the registry.
-#
-# Spawn clearance verified in this world -- the tightest of the four is skadi at
-# (0, 6), 4.24 m from an oak at (4.17, 6.74). That is the smallest clearance in
-# the whole rung set and it is still ~4x the Husky half-width, but it is the
-# first thing to check if a smoke cell reports a spawn-time collision.
-#
-# Longest initial link is husky(0,-3) to skadi(0,+6) = 9.00 m, well inside the
-# 30 m horizon, so the team STARTS fully connected. Confirm that empirically on
-# the first cell by reading all six pairs out of link_states.csv at t=0 rather
-# than trusting the geometry -- that is how it was established for the ts1b
-# rungs and the check has caught a bad assumption before.
-#
-# Record achieved RTF per team size. CPU contention masquerades as comms
-# behaviour: a slower box means fewer planner cycles per sim-second, which
-# looks like a planner that reconnects less eagerly. The ts1b baselines are
-# median wall/t_sim = 1.171 (N=2), 1.792 (N=3), 2.494 (N=4) on flatforest_dense;
-# this world has 426 models against flatforest_dense's ~2000, so it should be
-# no slower, and a figure that comes out WORSE is a signal something else is
-# wrong, not a fact about the stand.
-#
-# BEFORE running anything that TERMINATES on coverage here, re-measure the
-# unknown-fraction floor -- ts1b's 0.64 was calibrated on flatforest_dense and
-# does not transfer. See the note in cmu_forest_2robot_lidar.yaml.
+# Identical to flatforest_dense_4robot_lidar.yaml except the world; adds skadi
+# at y=+6. These poses override the registry's default_spawn_points. Re-measure
+# the unknown-fraction floor before coverage-terminated runs.
+# (notes: scenario-cmu-forest-4robot)
+# Moved comments: docs/hmr_sim_code_notes.md
 world: cmu_forest
 
 robots:

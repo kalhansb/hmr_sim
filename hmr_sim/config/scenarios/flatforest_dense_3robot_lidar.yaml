@@ -1,33 +1,10 @@
 # Three-robot LIDAR-ONLY scenario for the DENSE flatforest world.
 #
-# Identical to flatforest_3robot_lidar.yaml in every respect except the world,
-# and identical to flatforest_dense_2robot_lidar.yaml in every respect except
-# that a third robot exists. It is the cell this pair of files was missing: the
-# existing 3-robot scenario sits in the SPARSE world (74 stems/ha) while every
-# campaign in this tree since the 30 m radio regime has run the DENSE one
-# (250 stems/ha).
-#
-# That matters more here than anywhere else. The comms link in this project is
-# occlusion-gated -- no measured dropout in the campaign record had clear
-# line-of-sight -- so stem density, not transmit power, is what decides how
-# often the team loses contact. Running the N=3 step on flatforest would drop
-# density by 3.4x at the same moment team size changed, and a reconnection
-# experiment would be comparing arms in a world that barely disconnects. Team
-# size has to be the only thing that moved.
-#
-# atlas and bestla keep the exact spawn poses of both 2-robot scenarios, so the
-# first two robots of a 3-robot run start where a 2-robot run of the same seed
-# starts them.
-#
-# Spawn geometry, sensing, features and the husky registry note are all as in
-# flatforest_3robot_lidar.yaml: the three sit on the y axis at -3 / 0 / +3
-# facing away from each other, all on COSTAR_HUSKY_SENSOR_CONFIG_LIDAR so team
-# size is the only thing that changed, and the team STARTS connected, which the
-# comms warm-up and the planner's peer discovery both assume.
-#
-# Before running anything that TERMINATES on coverage in this world, re-measure
-# the coverage ceiling: the dense world's reachable fraction is not the sparse
-# world's, and a done_unknown threshold tuned on one is not valid on the other.
+# Identical to flatforest_3robot_lidar.yaml except the world, and to
+# flatforest_dense_2robot_lidar.yaml plus husky at y=-3; team size is the only
+# change. Re-measure the coverage ceiling before coverage-terminated runs.
+# (notes: scenario-flatforest-dense-3robot)
+# Moved comments: docs/hmr_sim_code_notes.md
 world: flatforest_dense
 
 robots:

@@ -1,10 +1,8 @@
 // HMR Comms Sim Node — message-level wireless-link emulator for multi-robot runs.
 //
-// Successor to the HMRNetSim gz plugin + hmr_comms_relay_node pair: both roles
-// (link-physics "oracle" and message "cable") live in this one ROS2 node, so the
-// same emulator runs against the live sim, a bag replay, or any pose source —
-// Gazebo is not involved. Tree positions come from parsing the world SDF once at
-// startup (trees are static; the plugin only ever read them once anyway).
+// Link physics and message relay live in one ROS2 node, so it runs against the
+// live sim, a bag replay or any pose source without Gazebo. Tree positions are
+// parsed from the world SDF once at startup. (notes: comms-sim-origin)
 //
 // Link model, per robot pair at link_rate_hz on the node clock (sim time):
 //   distance + trees crossing the Fresnel zone
@@ -52,6 +50,7 @@
 //                  invalid rows, not average them in.
 //   ~/robot_index  latched std_msgs/String JSON: row/column key for the above
 //   ~/stats        std_msgs/String JSON, per-link relay/drop counters
+// Moved comments: docs/hmr_sim_code_notes.md
 
 #include <rclcpp/rclcpp.hpp>
 #include <nav_msgs/msg/odometry.hpp>
@@ -120,21 +119,9 @@ double DbmToPow(double dbm)
   return 0.001 * std::pow(10.0, dbm / 10.0);
 }
 
-// 64-QAM BER over AWGN (line of sight).
-//
-// spectral_efficiency is bits/s/Hz AT THE TIER THE LINK IS ACTUALLY IN, passed
-// in by the caller, not the top tier: Eb/N0 = (S/N) / (R/B), so a link that has
-// downshifted spreads the same received power over fewer bits per second and
-// each bit gets more energy. Hardcoding the 72 Mbps value here charged a
-// downshifted link the error rate of a gear it was not in — see the
-// "Deliberately removed" note below for what that cost.
-//
-// The constellation stays 64-QAM at every tier, which the 28.9 and 7.2 Mbps
-// tiers are not (802.11n MCS3 is 16-QAM, MCS0 is BPSK). At equal Eb/N0 a
-// lower-order constellation has a LOWER error rate, so this is a pessimistic
-// bound on the BER of the real tier, not an estimate of it. That is deliberate:
-// ber is a published diagnostic that gates nothing, and a bound written down as
-// a bound beats a second pair of closed forms nobody has checked.
+// 64-QAM BER over AWGN (line of sight). spectral_efficiency is bits/s/Hz at the
+// tier the link is in, not the top tier. 64-QAM at every tier makes this a
+// pessimistic bound; ber gates nothing. (notes: comms-sim-awgn-ber-tier)
 double AwgnQam64Ber(double power_w, double noise_w, double spectral_efficiency)
 {
   const double M = 64.0;
@@ -158,28 +145,9 @@ double RayleighQam64Ber(double power_w, double noise_w, double spectral_efficien
          (1.0 / 24.0) * term(169.0);
 }
 
-// Deliberately removed: MessageSuccessProbability(ber, bits).
-//
-// It applied the BER above to a WHOLE serialized message, and its result was
-// used to drop best-effort messages and to inflate reliable airtime. Both were
-// wrong. The BER functions hardcode spectral_efficiency = 72e6/20e6 — 64-QAM at
-// the TOP rate — regardless of the tier NextBandwidth actually selected, so a
-// link that had correctly downshifted to 7.2 Mbps was charged the error rate of
-// a gear it was not in: slow AND lossy for one weak signal, which is the
-// opposite of what rate adaptation is for. Measured at tx_power_dbm=-14, median
-// BER on CONNECTED samples was 0.116, so a 200-byte beacon survived with
-// probability ~1e-70: robots exchanged 3544 intent beacons and 7 arrived, peer
-// records never formed, and the pursuit manoeuvre could never arm.
-// HMRNetSim.cc, which this node was ported from, never did this — it gates on
-// the SNR>=2 dB boundary (PDR 1.0 below, 1e-8 above) and publishes ber/per as
-// diagnostics only.
-//
-// Generation 9 made BER a function of the selected tier, which is the second
-// half of the condition this note used to set for reintroducing BER gating. The
-// first half still stands and is the binding one: DO NOT gate delivery on BER.
-// The bandwidth state machine is the only authority on whether a message gets
-// through, and a second, independent loss mechanism on top of it is what
-// produced the 7-of-3544 beacon result above.
+// MessageSuccessProbability was removed on purpose. Do not gate delivery on
+// BER: the bandwidth state machine is the only authority on whether a message
+// gets through. (notes: comms-sim-no-ber-gating)
 
 std::string ToLower(std::string s)
 {
@@ -207,19 +175,10 @@ public:
       "best_effort_topics", std::vector<std::string>{});
 
     world_sdf_ = declare_parameter<std::string>("world_sdf", "");
-    // A world may name its trees by species rather than by the word "tree"
-    // (flatforestv2 has 80 "Oak tree" models plus 8 "pine_*" includes), so the
-    // match is a set of substrings, ANY of which qualifies. A species missing
-    // from this list is transparent to the radio, which inflates the link budget
-    // rather than erroring — so LoadTreePositions() logs both the matched count
-    // and the names it rejected, and adding a world means reading that line.
-    // Defaults cover every tree species in the shipped worlds: "pine" alone does
-    // NOT match `pinus_pinaster` (20 per forest world), hence "pinus".
-    // To match nothing, write [""] — NOT []. An empty yaml/CLI list has no
-    // inferable element type and arrives NOT_SET, which aborts the node during
-    // base-class construction, before any code here runs. That is generic rclcpp
-    // behaviour for every list parameter (`reliable_topics` included), not a
-    // property of this one; main() turns the abort into a readable message.
+    // A tree matches if its name contains ANY substring here; an unlisted
+    // species is transparent to the radio (pine does not match pinus_pinaster).
+    // To match nothing pass one empty string: an empty list aborts the node.
+    // (notes: comms-sim-tree-name-substrings)
     tree_name_substrings_ = declare_parameter<std::vector<std::string>>(
       "tree_name_substrings", std::vector<std::string>{
         "tree", "pine", "pinus", "oak", "euca", "ulex"});
@@ -229,13 +188,9 @@ public:
     tree_name_substrings_.erase(
       std::remove(tree_name_substrings_.begin(), tree_name_substrings_.end(), std::string{}),
       tree_name_substrings_.end());
-    // Superseded scalar. Replaces (not extends) the list, so a world config that
-    // still sets it keeps its own species set rather than silently gaining the
-    // new defaults. Not bit-for-bit the old behaviour even so: include URIs are
-    // now tested alongside instance names, so legacy "tree" picks up flatforest's
-    // pines anyway (their URI is model://cmu_pine_tree) — 88, where it used to
-    // find 80. That widening is the point of this change, not a regression.
-    // (Declared after the list so a NOT_SET list above cannot skip it.)
+    // Deprecated scalar tree_name_substring: if set, it replaces (does not
+    // extend) the tree_name_substrings list.
+    // (notes: comms-sim-legacy-tree-substring)
     const auto legacy_substring = declare_parameter<std::string>("tree_name_substring", "");
     if (!legacy_substring.empty()) {
       RCLCPP_WARN(get_logger(),
@@ -253,11 +208,9 @@ public:
     tx_power_dbm_ = declare_parameter<double>("tx_power_dbm", 30.0);
     noise_floor_dbm_ = declare_parameter<double>("noise_floor_dbm", -101.0);
     p0_db_ = declare_parameter<double>("p0_db", 49.17);
-    // 70 dB/trunk makes ONE tree in the Fresnel zone fatal: the observed
-    // one-tree link geometries needed 51-66 dB of extra loss to cross the
-    // SNR floor, which the paper's fitted 11.98 (under which links survived
-    // ~4 trunks) never supplied. Runs before 2026-09 used 11.98 and are a
-    // different radio regime — never pool across the change.
+    // 70 dB per trunk makes ONE tree in the Fresnel zone fatal to the link.
+    // Runs made with a different value are a different radio regime; never pool
+    // across them. (notes: comms-sim-tree-attenuation-70db)
     tree_attenuation_db_ = declare_parameter<double>("tree_attenuation_db", 70.0);
     // Hard radio horizon (3D). With trunks fatal, tree-free lanes are the
     // links left over, and free-space loss alone keeps a 30 dBm link decodable
@@ -272,11 +225,10 @@ public:
     // Residual loss on a link the state machine reports as up, matching
     // HMRNetSim.cc's PDR of 1e-8 above the SNR>=2 dB boundary.
     residual_pdr_ = declare_parameter<double>("residual_pdr", 1e-8);
-    // A pose older than this (in the node's own clock, so sim time when
-    // use_sim_time is set) does not describe where the robot is now, and a link
-    // model run on it reports a link that may not exist. Links touching a stale
-    // endpoint go invalid: no delivery, and a zeroed diagnostic row. Set <= 0
-    // to restore the pre-generation-9 behaviour of trusting a pose forever.
+    // Seconds (node clock, so sim time under use_sim_time) after which a pose
+    // is stale; links touching a stale endpoint go invalid: no delivery and a
+    // zeroed diagnostic row. <= 0 trusts a pose forever.
+    // (notes: comms-sim-pose-timeout)
     pose_timeout_s_ = declare_parameter<double>("pose_timeout_s", 2.0);
     reliable_queue_max_bytes_ = static_cast<size_t>(
       declare_parameter<int64_t>("reliable_queue_max_bytes", 64LL * 1024 * 1024));
@@ -661,19 +613,17 @@ private:
     const double snr_db = rx_dbm - noise_floor_dbm_;
 
     // Tier first, then BER at that tier. NextBandwidth reads only snr_history
-    // and ps.bandwidth_mbps and writes only snr_history, so this reordering
-    // leaves the selected tier — and therefore every delivery decision —
-    // bit-identical to generation 8. Only the ber column moves.
+    // and ps.bandwidth_mbps and writes only snr_history, so the order leaves
+    // every delivery decision unchanged. (notes: comms-sim-tier-before-ber)
     ps.bandwidth_mbps = NextBandwidth(ps, snr_db);
     ps.connected = ps.bandwidth_mbps > 0.0;
 
     double ber;
     if (ps.bandwidth_mbps <= 0.0) {
-      // No gear engaged: there is no rate to define a bit error rate at, and
-      // nothing is getting through. 1.0, the same value an invalid row
-      // publishes, rather than a number computed at a rate the link is not
-      // using. Every consumer of this column should already be masking on
-      // connected; this makes an unmasked read wrong in the safe direction.
+      // No gear engaged: BER is undefined and nothing gets through, so publish
+      // 1.0, as an invalid row does. Consumers should mask on connected; this
+      // keeps an unmasked read wrong in the safe direction.
+      // (notes: comms-sim-ber-when-no-gear)
       ber = 1.0;
     } else {
       const double spectral_efficiency = ps.bandwidth_mbps * 1e6 / kChannelBandwidthHz;
@@ -839,12 +789,10 @@ private:
         continue;
       }
       const size_t bits = bytes * 8;
-      // Delivery is the bandwidth state machine's call, as in HMRNetSim.cc:
-      // above the SNR>=2 dB boundary (i.e. ps.connected, checked above) the
-      // reference plugin delivers with PDR=1e-8, and its ber/per exist only to
-      // be published. Link quality reaches the experiment through the TIER —
-      // a weak link is slow, which surfaces as airtime pressure and backlog in
-      // cost_s below — not as vanished messages.
+      // Delivery is the bandwidth state machine's call (ps.connected, checked
+      // above). Link quality reaches the experiment through the tier, as
+      // airtime pressure in cost_s below, not as vanished messages.
+      // (notes: comms-sim-best-effort-delivery)
       if (uniform_(drop_rng_) < residual_pdr_) {
         ++stats.drop_ber;
         continue;
@@ -876,12 +824,9 @@ private:
       }
       QueuedMsg & front = queue.front();
       const size_t bits = front.bytes * 8;
-      // The tier is the whole quality model, so a byte costs bits/tier and
-      // nothing more. The BER-derived retransmission multiplier that used to
-      // scale this was never physical: it was capped at retx_cap while the
-      // true expected number of transmissions at the BER this node computes is
-      // astronomically larger, and that cap is the only reason 60 kB map
-      // deltas flowed at all on a link where 200-byte beacons were dying.
+      // The tier is the whole quality model: a byte costs bits/tier of airtime
+      // and nothing more, with no BER-derived retransmission multiplier.
+      // (notes: comms-sim-reliable-airtime-cost)
       const double cost_s = bits / (ps.bandwidth_mbps * 1e6);
       airtime_tokens_ -= cost_s;
       ScheduleDelivery(front.pub, front.msg, cost_s);
@@ -1066,10 +1011,9 @@ int main(int argc, char ** argv)
     node = std::make_shared<HmrCommsSimNode>();
   } catch (const rclcpp::exceptions::InvalidParameterValueException & e) {
     // Raised from the Node base constructor while ingesting overrides, so no
-    // catch inside the node body can see it. Overwhelmingly this is an empty
-    // list written as `[]`: yaml and `--ros-args -p` cannot infer an element
-    // type, the value arrives NOT_SET, and the default abort is an opaque
-    // std::terminate that names neither the cause nor the fix.
+    // catch in the node body sees it. Usually an empty list, which has no
+    // inferable element type and arrives NOT_SET.
+    // (notes: comms-sim-empty-list-abort)
     RCLCPP_FATAL(rclcpp::get_logger("hmr_comms_sim"),
       "Bad parameter override: %s. If you wrote an empty list `[]`, that has no "
       "inferable element type — write [\"\"] for an empty list of strings.",

@@ -4,6 +4,7 @@
 # can also be overridden per run with --ros-args -p.
 #
 # See docs/comms_sim.md for the model and the reliable/best-effort semantics.
+# Moved comments: docs/comms_sim_params_notes.md
 hmr_comms_sim:
   ros__parameters:
     # Where each robot's pose comes from; '{robot}' is replaced per robot.
@@ -21,55 +22,19 @@ hmr_comms_sim:
     # BER coin flip. Use for streams where the latest sample supersedes older
     # ones (pointclouds, odometry). e.g. ["velodyne_points"]
     #
-    # exploration/intents is the planner's coordination beacon, and it is what
-    # makes the reconnection experiment work at all: a peer reading as MISSING
-    # is the trigger for every reconnect manoeuvre, so unless this stream is
-    # gated the manoeuvres never fire no matter what the radio model says. It
-    # requires the planner's split intent wiring — coord_intent_pub_topic:
-    # "exploration/intents" (relative, so it resolves to /<robot>/...) and
-    # coord_intent_sub_topics listing the relayed copies. Left on the default
-    # shared /exploration/intents bus, there is no per-robot source topic here
-    # to discover and the relay silently never forms.
-    #
-    # best-effort, NOT reliable, and the distinction is load-bearing: a queued
-    # intent delivered late on reconnect would be stamped with LOCAL receipt
-    # time by the receiver (last_contact_), so a minute-old claim would land
-    # looking freshly heard — resetting the peer's TTL and aborting the very
-    # manoeuvre under test. A stale beacon is worse than a dropped one.
-    # exploration/team_world is the M-TARE shared world model (planner
-    # docs/mtare_evolution_plan.md §3.2), and it is gated here for the same
-    # reason and with the same wiring requirement as intents: it needs the
-    # planner's split team_world_pub_topic / team_world_sub_topics params, and
-    # on the default shared bus there is no per-robot source topic to discover,
-    # so the relay silently never forms and every arm reads as perfect comms.
-    #
-    # best-effort for TWO reasons, either of which alone would settle it:
-    #
-    #   1. The stale-beacon argument above applies verbatim. TeamWorld carries
-    #      the comms handshake, and a receiver stamps it with LOCAL receipt
-    #      time — so a queued message released on reconnect would reset the
-    #      peer's direct TTL to "just heard", exactly the corruption that keeps
-    #      intents out of the reliable set.
-    #
-    #   2. Reliable delivery would buy nothing even without (1). The message is
-    #      FULL STATE, not deltas, so an older copy contains nothing the next
-    #      one lacks; the entire value of a queued backlog is already in the
-    #      first message that arrives after the link heals. Unlike the scovox
-    #      deltas, a dropped TeamWorld cannot hole anything permanently.
-    #
-    # Listed alongside intents rather than replacing them: the two streams are
-    # independent switches (team_world_hz defaults to 0.0), and a run with the
-    # exchange off must still gate its intents.
+    # Needs the planner's coord_intent_pub_topic/coord_intent_sub_topics and
+    # team_world_pub_topic/team_world_sub_topics, else no relay forms. Keep
+    # intents listed with team_world off. Never reliable: a late message resets
+    # peer TTL. (notes: comms-best-effort-intents-team-world)
     best_effort_topics: ["exploration/intents", "exploration/team_world"]
 
     # --- radio / propagation (forest model, IEEE 9260568) -------------------
     tx_power_dbm: 30.0        # matches the old RobotNetworkConfig default
     noise_floor_dbm: -101.0   # 802.11n
     p0_db: 49.17              # path loss at 1 m
-    # Per trunk crossing the Fresnel zone. 70 dB makes a SINGLE tree fatal
-    # (observed one-tree geometries needed 51-66 dB); the IEEE 9260568 fit of
-    # 11.98 let links survive ~4 trunks and every pre-2026-09 campaign ran it —
-    # a different radio regime, never pool across the change.
+    # Attenuation per trunk crossing the Fresnel zone; 70 dB makes a single tree
+    # fatal. Runs at another value are a different radio regime: never pool
+    # across it. (notes: comms-tree-attenuation-70db)
     tree_attenuation_db: 70.0
     # Hard radio horizon (3D distance). Beyond it the node adds a 200 dB cliff,
     # so even a tree-free link is down — free-space loss alone keeps a 30 dBm
@@ -79,22 +44,10 @@ hmr_comms_sim:
     frequency_hz: 2.4e9
     fade_sigma_db: 4.8        # shadow-fading std (stationary)
     fade_alpha: 0.9           # AR(1) memory per link tick; higher = slower fading
-    # A world model (or an include's instance name / model URI) counts as a tree
-    # if it contains ANY of these, case-insensitively. Species not listed here
-    # are transparent to the radio, which shows up as an optimistically HIGH link
-    # budget, not as an error — so read the two lines the node logs at startup
-    # ("Loaded N tree positions" and "Not counted as trees: ...") when adding a
-    # world. flatforestv2: 80 oak models + 8 "pine_*" includes = 88.
-    #   "pine" does NOT match `pinus_pinaster` (20 per forest world) — hence the
-    #   separate "pinus". "euca"/"ulex" cover the other shipped forest worlds.
-    #   Shrubs/bushes are deliberately excluded: tree_attenuation_db is a trunk
-    #   figure and a shrub is not a trunk.
-    # All species share the single tree_radius_m/tree_attenuation_db above; the
-    # models collide as meshes with no analytic trunk primitive, so there is no
-    # per-species radius to read out of the world.
-    # To match NOTHING write [""], never [] — an empty list has no inferable
-    # element type, arrives NOT_SET and aborts the node (generic rclcpp
-    # behaviour for every list param here, e.g. reliable_topics).
+    # A model counts as a tree if its name or include URI contains any entry
+    # (case-insensitive); unlisted species are transparent to the radio. Shrubs
+    # are excluded on purpose. To match nothing write [""], never [].
+    # (notes: comms-tree-name-substrings)
     tree_name_substrings: ["tree", "pine", "pinus", "oak", "euca", "ulex"]
     # Superseded scalar. If set non-empty it REPLACES the list above and warns.
     # It is not a bit-for-bit revert: include URIs are now matched too, so even
@@ -109,32 +62,10 @@ hmr_comms_sim:
     # All links contend for one channel: airtime_capacity seconds of air per
     # second. A message of B bytes on a link at R Mbps costs 8B/R seconds.
     #
-    # capacity 1.0 -> 0.6 and burst 0.1 -> 0.25 (2026-09-05), because the old
-    # pair was unphysical at both ends:
-    #
-    #   capacity 1.0 claimed 100% channel utilisation. cost_s is charged as
-    #   8B/R against the PHY rate (up to the 72 Mbps default), but no real
-    #   802.11 link delivers its PHY rate as goodput -- preamble, PLCP and MAC
-    #   headers, FCS, SIFS, ACK, DIFS and average backoff all consume air. 72.2
-    #   Mbps MCS7 measures out at roughly 40-45 Mbps of MAC throughput, i.e.
-    #   ~60% efficiency, so ~0.6 s of every second is actually available for
-    #   payload bits.
-    #
-    #   burst 0.1 let the model bank only 100 ms of air, so a momentary surge
-    #   was DROPPED where a real interface would queue and delay it -- driver
-    #   and qdisc buffers classically hold hundreds of ms (the bufferbloat
-    #   observation). 0.25 s is a typical interface's worth of buffering. This
-    #   matters here specifically: measured exhaustion is front-loaded, during
-    #   the initial map dump while the team is still co-located, which is
-    #   exactly the transient a real radio absorbs.
-    #
-    # Net: sustained supply down 40% (protocol overhead is real), transient
-    # tolerance up 2.5x (interface buffering is real). These are principled but
-    # NOT calibrated against a measured radio, and they do not touch the model's
-    # real structural gap -- one GLOBAL bucket, i.e. no spatial reuse, so two
-    # connected pairs at opposite ends of the map still contend. That is a code
-    # change, not a parameter. See ~/hmr_campaign/ts1_analysis/docs/
-    # COMMS_MODEL_REALISM.md.
+    # 0.6 allows for 802.11 protocol overhead and the 0.25 s burst for interface
+    # buffering; neither is calibrated against a measured radio. One global
+    # bucket: no spatial reuse between distant pairs.
+    # (notes: comms-airtime-capacity-burst)
     airtime_capacity: 0.6
     airtime_burst_s: 0.25     # max accumulated idle airtime (burst allowance)
     retx_cap: 4.0             # cap on the reliable retransmission cost factor
@@ -147,63 +78,10 @@ hmr_comms_sim:
     # KeepLast publisher silently replaces unacked samples past its depth.
     # Receivers should subscribe with a comparable depth.
     #
-    # Raised 100 -> 500 for the reconnection experiment. On reconnect the
-    # reliable backlog is released to the delivery timer in ONE pass and
-    # republished far faster than a subscriber drains it, so the depth has to
-    # cover a whole outage's worth of messages, not a steady-state second.
-    #
-    # Only the scovox delta stream is at stake here. Intents are in
-    # best_effort_topics, so they are dropped while the link is down and never
-    # enter the reliable queue at all — the burst on reconnect is map deltas
-    # only. Samples past the depth are dropped SILENTLY: drop_overflow only sees
-    # the pre-relay queue, so the loss would land as missing voxels in the
-    # merged map with no statistic anywhere saying so.
-    #
-    # This value is applied to BOTH the emulator's source subscription and its
-    # rx publisher, so the cost is subscriber-side history plus publisher-side
-    # memory held until acknowledgement, and it is unbounded in bytes (unlike
-    # reliable_queue_max_bytes, which caps the pre-relay queue).
-    #
-    # Depth is only as good as the SHALLOWEST end of the chain. The consumer of
-    # the relayed map stream is dscovox_node, whose subscription depth is set by
-    # its own scovox_bin_qos_depth parameter — raise that to match, or the burst
-    # is discarded at the reader instead and nothing here can tell.
-    #
-    # Raised 500 -> 4000 (2026-08-16) as INSURANCE, not as a fix. Read on before
-    # citing this number as evidence of anything.
-    #
-    # WITHDRAWN CLAIM. This comment used to say the warning above "came true":
-    # that 500 was sized for the SPARSE world (worst outage 19.4 s ~ 40 deltas at
-    # the ~2 Hz share rate), that the 250 stems/ha stand's 861 s outages ~ 1720
-    # deltas overran it by ~3.4x, and that this was why three dense cells ended
-    # with their merged maps 1.5-1.8 % apart. That reasoning was arithmetically
-    # fine and empirically wrong. Re-running at depth 4000 gave 3.58 % and 0.10 %
-    # — the 3.58 % worse than every depth-500 run (1.76 / 1.49 / 1.78 %). If
-    # overflow were the mechanism, deepening the queue could not make it worse.
-    #
-    # WHAT THE GAP ACTUALLY IS. Tracked through a run it is transient, not
-    # cumulative: it opens while the radio is down (each robot keeps mapping its
-    # own sensors while the peer's deltas sit queued, so the two merged maps are
-    # legitimately different) and collapses when the backlog drains on reconnect
-    # — 38 % mid-run healing to 2.5 % by teardown, and flat 0 under perfect
-    # comms, which has nothing to drain. The end-of-run number measures how much
-    # backlog was still draining at the instant the stop rule fired. See
-    # sim/map_agreement.py for the full trace and the withdrawal.
-    #
-    # WHY 4000 STAYS ANYWAY. Overflow is not the observed mechanism, but nothing
-    # in this experiment measures it independently either — drop_overflow only
-    # ever sees the relay's own pre-relay queue, so the original worry remains
-    # untested rather than refuted. 4000 covers the worst outage MEASURED (1720
-    # deltas) with a 2.3x margin at ~240 MB per queue against ~60 kB deltas,
-    # which is cheap on a 62 GB box. It is deliberately NOT sized to a full-run
-    # blackout (5800 s ~ 11 600 deltas, ~700 MB per queue across four queues,
-    # publisher and subscriber side): wasteful, and a blackout that long would be
-    # a different experiment. A world with longer outages needs a bigger number,
-    # computed the same way: worst_outage_s * share_rate_hz * margin.
-    #
-    # sim/map_agreement.py reports this gap (end and peak) but no longer FAILs on
-    # it. Failing runs on it was backwards — it discarded hardest-hit cells and
-    # was on course to abort a 12-cell matrix over a non-defect.
+    # Applied to both the source subscription and the rx publisher, unbounded in
+    # bytes. dscovox_node's scovox_bin_qos_depth must match or the burst is
+    # dropped at the reader. Size as worst_outage_s * share_rate_hz * margin.
+    # (notes: comms-rx-qos-depth)
     rx_qos_depth: 4000
 
     # --- reproducibility ----------------------------------------------------
