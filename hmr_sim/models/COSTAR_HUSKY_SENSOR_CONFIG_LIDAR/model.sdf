@@ -255,31 +255,30 @@
               <max_angle>0.261799</max_angle>
             </vertical>
           </scan>
-          <!-- Far clip 25 m, was 100 m (changed 2026-09-15, generation 9).
-               gz-sim hands <max> to the gpu_lidar as the render far clip, so a
-               100 m clip rasterised the whole 96 x 104 m world into every one of
-               the 10 depth frames per second per robot. Nothing consumed a
-               return past 20 m: scovox integrates with max_range 20.0 and the
-               nav costmap reads sensors.max_range_m 20.0 (both in
-               simple_nav_3d.launch.py, dscovox_lidar branch), so every hit
-               between 20 and 100 m was rendered, bridged, and then dropped
-               twice. 25 keeps a 5 m margin over both consumers.
-               NOT free of behavioural risk, and the direction to check is
-               specific: a beam that would have hit a trunk at 40 m now returns
-               no hit instead of a hit that gets discarded. Both end up absent
-               from the map, which is why this is expected to be a no-op on the
-               maps and a saving on the clock, but it is the one edit here
-               whose no-op-ness rests on an argument rather than on an
-               unchanged file, so check map coverage on the smoke cell. -->
+          <!-- Velodyne VLP-16 datasheet values (lookout experiment, 2026-09-23):
+               range 100 m, near 0.5 m, Gaussian range noise sigma 0.02 m;
+               16 channels over +-15 deg, 1800 samples/rev (0.2 deg), 10 Hz and
+               1 cm resolution unchanged. Was 25 m / 0.05 m / 0.01 m.
+               The 25 m far clip of generation 9 is kept for mapping and
+               exploration IN SOFTWARE: lidar_crop.py republishes this cloud as
+               /<robot>/velodyne_points_25m with every return beyond 25 m set to
+               +inf (what the old far clip produced), and scovox and the nav
+               costmap read that topic. Only detection reads the full cloud.
+               Both consumers already drop returns beyond 20 m and non-finite
+               points, so the crop is a safeguard, not a behaviour change.
+               <min> is also the render near plane: anything closer than 0.5 m
+               to the sensor is not seen (see lookout/PLAN.md for the self-return
+               check). Not modelled by gz-sensors: target reflectivity, beam
+               divergence (~3 mrad) and dual returns. -->
           <range>
-            <min>0.05</min>
-            <max>25</max>
+            <min>0.5</min>
+            <max>100</max>
             <resolution>0.01</resolution>
           </range>
           <noise>
             <type>gaussian</type>
             <mean>0</mean>
-            <stddev>0.01</stddev>
+            <stddev>0.02</stddev>
           </noise>
         </lidar>
         <pose frame="">0.0012 0 0.716 0 0.0 0</pose>
