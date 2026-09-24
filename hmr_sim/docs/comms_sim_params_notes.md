@@ -59,6 +59,18 @@ independent switches (team_world_hz defaults to 0.0), and a run with the
 exchange off must still gate its intents.
 ```
 
+*Gen-34 addendum (2026-09-24, DESIGN_gen34 §11.9).* The shared list later
+also carried `exploration/team_beacon`, the gen-34 exchange, on the claim that
+a listed topic nobody publishes "stays pending and costs nothing". It does
+not cost nothing: the gen-34 node never publishes `exploration/team_world`, so
+that entry kept the 1 s discovery poll running for the whole run, printed a
+"waiting" line every 10 s, and "All relay topics discovered" never printed.
+The list is now `exploration/intents` and `exploration/team_beacon`; a gen-33
+run would need `exploration/team_world` added back through its own params
+file. The emulator's waiting line now names the pending topics, and
+`pending_warn_sec` (120 s after the last discovery, or after the first poll if
+none) gives a one-time warning.
+
 ## radio / propagation (forest model, IEEE 9260568)
 
 ### comms-tree-attenuation-70db

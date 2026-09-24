@@ -179,6 +179,9 @@ public:
       "reliable_topics", std::vector<std::string>{});
     auto best_effort_topics = declare_parameter<std::vector<std::string>>(
       "best_effort_topics", std::vector<std::string>{});
+    // Seconds a topic may stay pending after the last discovery (or the first
+    // poll) before a one-time warning names it. <= 0: never warn.
+    pending_warn_sec_ = declare_parameter<double>("pending_warn_sec", 120.0);
 
     world_sdf_ = declare_parameter<std::string>("world_sdf", "");
     // A tree matches if its name contains ANY substring here; an unlisted
@@ -745,9 +748,34 @@ private:
     for (const auto & t : discovered) {
       pending_topics_.erase(t);
     }
-    if (!pending_topics_.empty()) {
-      RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 10000,
-        "Waiting for %zu relay topics to appear...", pending_topics_.size());
+    if (pending_topics_.empty()) {
+      return;
+    }
+    // Timed from the last discovery, not the start: the planners come up a
+    // minute or more after the emulator. With none yet, from the first poll,
+    // which runs on the node clock and so, under use_sim_time, only once
+    // /clock does.
+    const rclcpp::Time now = get_clock()->now();
+    if (!discovered.empty() || !pending_anchor_set_) {
+      pending_anchor_ = now;
+      pending_anchor_set_ = true;
+    }
+    std::string names;
+    for (const auto & [src_topic, info] : pending_topics_) {
+      names += (names.empty() ? "" : ", ") + src_topic;
+    }
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 10000,
+      "Waiting for %zu relay topics to appear: %s", pending_topics_.size(), names.c_str());
+    // Once only; discovery keeps polling, so a late publisher is still relayed.
+    if (!pending_warned_ && pending_warn_sec_ > 0.0 &&
+      (now - pending_anchor_).seconds() >= pending_warn_sec_)
+    {
+      pending_warned_ = true;
+      RCLCPP_WARN(get_logger(),
+        "%zu relay topic(s) still unpublished %.0f s after the last discovery: %s. "
+        "Nothing relays them; if the running node never publishes them, drop "
+        "them from reliable_topics/best_effort_topics.",
+        pending_topics_.size(), (now - pending_anchor_).seconds(), names.c_str());
     }
   }
 
@@ -990,6 +1018,10 @@ private:
 
   // relay plumbing
   std::map<std::string, PendingTopic> pending_topics_;
+  double pending_warn_sec_ = 120.0;
+  rclcpp::Time pending_anchor_;
+  bool pending_anchor_set_ = false;
+  bool pending_warned_ = false;
   std::vector<rclcpp::GenericSubscription::SharedPtr> tx_subs_;
   // rx_pubs_[DirKey(sender, receiver)][comms_topic]
   std::map<size_t, std::map<std::string, rclcpp::GenericPublisher::SharedPtr>> rx_pubs_;

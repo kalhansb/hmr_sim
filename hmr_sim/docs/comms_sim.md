@@ -97,6 +97,15 @@ Topics are relayed from `/<sender>/<topic>` to `/<receiver>/rx/<sender>/<topic>`
 
 Every delivered message is deferred by its transmission time plus `delay_ms`.
 
+A listed topic is looked for once a second until it appears. One that the
+running stack never publishes stays pending for the whole run: the poll never
+stops, a "Waiting for N relay topics to appear: …" line naming them prints
+every 10 s, and "All relay topics discovered" never prints. `pending_warn_sec`
+(default 120) seconds after the last topic that was discovered, or after the
+first poll if none was, the emulator warns once, naming what is still pending.
+The poll continues after the warning, so a late publisher is still relayed.
+List only the topics the running node publishes.
+
 ## Diagnostics
 
 - `~/link_states` (`Float64MultiArray`, at `link_rate_hz`) — one row per

@@ -23,13 +23,21 @@ hmr_comms_sim:
     # ones (pointclouds, odometry). e.g. ["velodyne_points"]
     #
     # Needs the planner's coord_intent_pub_topic/coord_intent_sub_topics and
-    # team_world_pub_topic/team_world_sub_topics (gen 33) or
-    # team_beacon_pub_topic/team_beacon_sub_topics (gen 34), else no relay
-    # forms. A listed topic nobody publishes stays pending and costs nothing,
-    # so one list serves both generations. Never reliable: a late message
-    # resets peer TTL. (notes: comms-best-effort-intents-team-world)
-    best_effort_topics: ["exploration/intents", "exploration/team_world",
-                         "exploration/team_beacon"]
+    # team_beacon_pub_topic/team_beacon_sub_topics, else no relay forms. List
+    # only topics the running node publishes: one nobody publishes stays
+    # pending for the whole run, so the discovery poll never stops, "All relay
+    # topics discovered" never prints, and after pending_warn_sec the emulator
+    # warns. gen 33's exploration/team_world is off this list; a gen-33 run
+    # would add it back in its own params file. Never reliable: a late
+    # message resets peer TTL.
+    # (notes: comms-best-effort-intents-team-world)
+    best_effort_topics: ["exploration/intents", "exploration/team_beacon"]
+
+    # Seconds a listed topic may stay undiscovered after the last topic that
+    # was discovered (or after the first poll, if none was) before the
+    # emulator warns, once, naming it. Discovery keeps polling after the
+    # warning, so a late publisher is still relayed. <= 0 disables the warning.
+    pending_warn_sec: 120.0
 
     # --- radio / propagation (forest model, IEEE 9260568) -------------------
     tx_power_dbm: 30.0        # matches the old RobotNetworkConfig default
