@@ -23,11 +23,16 @@
 //   Admission requires a positive token balance; the balance may then go
 //   negative (debt), which keeps arbitrarily large messages sendable while
 //   still enforcing the long-run rate.
-//   Two per-topic policies:
+//   Three per-topic policies:
 //     reliable    — never dropped. FIFO queue per directional link, drained only
 //                   while the link is up and airtime is available; a down link
 //                   grows a backlog that is delivered late, never lost (bounded
 //                   by reliable_queue_max_bytes, oldest dropped + warned).
+//     latest      — reliable, for streams whose every message is a whole
+//                   state (full-map frames). A new message removes any older
+//                   one from the same sender still queued for that receiver
+//                   (counted as drop_superseded, never as a loss); a message
+//                   already on the air is never cancelled.
 //                   Airtime cost is bits / the CURRENT TIER: a bad link is slow.
 //     best_effort — dropped when the link is down or when the shared channel has
 //                   no airtime; otherwise delivered, less residual_pdr.
@@ -37,6 +42,19 @@
 //                   beacon then reaches a connected peer even while a map
 //                   backlog holds the channel in debt. Default false keeps the
 //                   earlier behaviour.
+//   Two transmission models for reliable and latest (transmission_model):
+//     admission   — (default; every run before gen-34 §12) a queued message
+//                   is admitted whole at the tier in force when airtime turns
+//                   positive, charged bits/tier, and delivered at now + cost
+//                   whatever the link does next. Messages admitted in one
+//                   drain are delivered by size, not in order.
+//     progressive — one message on the air per directional link. Each
+//                   delivery tick sends dt of air at the CURRENT tier, the
+//                   shared airtime split evenly across the links sending;
+//                   a message is delivered when its last bit is sent, so
+//                   delivery is FIFO per link. A link that drops mid-message
+//                   resumes a reliable one on reconnect and aborts a latest
+//                   one (drop_aborted; the newest frame goes next contact).
 //   Both policies take delivery from the bandwidth state machine alone, as in
 //   HMRNetSim.cc: gear 0 means nothing gets through, any other gear means
 //   essentially everything gets through at that gear's speed. ber/per are
@@ -179,6 +197,13 @@ public:
       "reliable_topics", std::vector<std::string>{});
     auto best_effort_topics = declare_parameter<std::vector<std::string>>(
       "best_effort_topics", std::vector<std::string>{});
+    auto latest_topics = declare_parameter<std::vector<std::string>>(
+      "latest_topics", std::vector<std::string>{});
+    // Empty entries are dropped, so a list can be emptied from a launch file
+    // (a parameter override cannot carry an empty list): [""] means none.
+    for (auto * list : {&reliable_topics, &best_effort_topics, &latest_topics}) {
+      list->erase(std::remove(list->begin(), list->end(), std::string{}), list->end());
+    }
     // Seconds a topic may stay pending after the last discovery (or the first
     // poll) before a one-time warning names it. <= 0: never warn.
     pending_warn_sec_ = declare_parameter<double>("pending_warn_sec", 120.0);
@@ -244,6 +269,18 @@ public:
     reliable_queue_max_bytes_ = static_cast<size_t>(
       declare_parameter<int64_t>("reliable_queue_max_bytes", 64LL * 1024 * 1024));
     rx_qos_depth_ = static_cast<size_t>(declare_parameter<int64_t>("rx_qos_depth", 100));
+    // Latest topics carry whole states (~10 MB map frames): a deep history
+    // buys nothing and could hold gigabytes.
+    latest_qos_depth_ = static_cast<size_t>(std::max<int64_t>(
+      1, declare_parameter<int64_t>("latest_qos_depth", 2)));
+    const auto tx_model = declare_parameter<std::string>("transmission_model", "admission");
+    if (tx_model == "progressive") {
+      progressive_ = true;
+    } else if (tx_model != "admission") {
+      RCLCPP_FATAL(get_logger(),
+        "transmission_model must be 'admission' or 'progressive', got '%s'.", tx_model.c_str());
+      throw std::runtime_error("bad transmission_model");
+    }
     const double stats_period_s = declare_parameter<double>("stats_period_s", 10.0);
     const int64_t seed = declare_parameter<int64_t>("seed", 42);
 
@@ -251,18 +288,23 @@ public:
       RCLCPP_FATAL(get_logger(), "robot_names needs at least 2 robots.");
       throw std::runtime_error("robot_names needs at least 2 robots");
     }
-    for (const auto & t : reliable_topics) {
-      if (std::find(best_effort_topics.begin(), best_effort_topics.end(), t) !=
-          best_effort_topics.end())
-      {
-        RCLCPP_FATAL(get_logger(), "Topic '%s' listed as both reliable and best_effort.",
-          t.c_str());
-        throw std::runtime_error("topic in both policy lists");
+    {
+      std::map<std::string, int> listed;
+      for (const auto * list : {&reliable_topics, &best_effort_topics, &latest_topics}) {
+        for (const auto & t : *list) {
+          if (++listed[t] > 1) {
+            RCLCPP_FATAL(get_logger(),
+              "Topic '%s' listed in more than one of reliable_topics, "
+              "best_effort_topics and latest_topics.", t.c_str());
+            throw std::runtime_error("topic in more than one policy list");
+          }
+        }
       }
     }
-    if (reliable_topics.empty() && best_effort_topics.empty()) {
+    if (reliable_topics.empty() && best_effort_topics.empty() && latest_topics.empty()) {
       RCLCPP_WARN(get_logger(),
-        "No reliable_topics/best_effort_topics configured — only link states will be published.");
+        "No reliable_topics/best_effort_topics/latest_topics configured — only link "
+        "states will be published.");
     }
 
     // Physics RNG and drop RNG are separate on purpose: fades then depend only
@@ -325,6 +367,9 @@ public:
       for (const auto & t : best_effort_topics) {
         pending_topics_["/" + robot_names_[s] + "/" + t] = {s, t, Policy::kBestEffort};
       }
+      for (const auto & t : latest_topics) {
+        pending_topics_["/" + robot_names_[s] + "/" + t] = {s, t, Policy::kLatest};
+      }
     }
 
     // ---- timers (node clock, so use_sim_time works) ----------------------
@@ -345,12 +390,14 @@ public:
       std::bind(&HmrCommsSimNode::PublishStats, this));
 
     RCLCPP_INFO(get_logger(),
-      "hmr_comms_sim up: %zu robots, %zu trees, %zu relay topics pending, seed=%ld.",
-      n, trees_.size(), pending_topics_.size(), static_cast<long>(seed));
+      "hmr_comms_sim up: %zu robots, %zu trees, %zu relay topics pending, seed=%ld, "
+      "transmission_model=%s.",
+      n, trees_.size(), pending_topics_.size(), static_cast<long>(seed),
+      progressive_ ? "progressive" : "admission");
   }
 
 private:
-  enum class Policy { kReliable, kBestEffort };
+  enum class Policy { kReliable, kBestEffort, kLatest };
 
   struct PairState
   {
@@ -380,6 +427,15 @@ private:
     std::shared_ptr<rclcpp::SerializedMessage> msg;
     rclcpp::GenericPublisher::SharedPtr pub;
     size_t bytes;
+    bool latest = false;
+  };
+
+  // progressive model: the message on the air on one directional link
+  struct InFlight
+  {
+    QueuedMsg m;
+    double bits_left = 0.0;
+    bool active = false;
   };
 
   struct Delivery
@@ -402,6 +458,9 @@ private:
     uint64_t drop_airtime = 0;
     uint64_t drop_disconnected = 0;
     uint64_t drop_overflow = 0;
+    uint64_t drop_superseded = 0;   // latest topics only; not a loss
+    uint64_t drop_aborted = 0;      // progressive: latest message cut by a link drop
+    uint64_t latest_relayed = 0;    // latest messages delivered (in relayed too)
   };
 
   size_t PairKey(size_t i, size_t j) const
@@ -709,7 +768,8 @@ private:
       // whatever QoS the source stack chose. Depth must survive a reconnect
       // backlog burst: a reliable KeepLast(10) publisher would silently replace
       // unacked samples when the queue drains ~all at once.
-      rclcpp::QoS qos{rclcpp::KeepLast(rx_qos_depth_)};
+      rclcpp::QoS qos{rclcpp::KeepLast(
+          info.policy == Policy::kLatest ? latest_qos_depth_ : rx_qos_depth_)};
       const auto pubs_info = get_publishers_info_by_topic(src_topic);
       if (!pubs_info.empty()) {
         const auto rmw_qos = pubs_info.front().qos_profile().get_rmw_qos_profile();
@@ -734,7 +794,8 @@ private:
         rx_pubs_[DirKey(sender, r)][comms_topic] =
           create_generic_publisher(rx_topic, msg_type, qos);
         RCLCPP_INFO(get_logger(), "  relay [%s]: %s -> %s [%s]",
-          policy == Policy::kReliable ? "reliable" : "best-effort",
+          policy == Policy::kReliable ? "reliable" :
+          policy == Policy::kLatest ? "latest" : "best-effort",
           src_topic.c_str(), rx_topic.c_str(), msg_type.c_str());
       }
 
@@ -774,7 +835,7 @@ private:
       RCLCPP_WARN(get_logger(),
         "%zu relay topic(s) still unpublished %.0f s after the last discovery: %s. "
         "Nothing relays them; if the running node never publishes them, drop "
-        "them from reliable_topics/best_effort_topics.",
+        "them from reliable_topics/best_effort_topics/latest_topics.",
         pending_topics_.size(), (now - pending_anchor_).seconds(), names.c_str());
     }
   }
@@ -801,9 +862,22 @@ private:
       PairState & ps = pair_states_[PairKey(sender, r)];
       LinkStats & stats = stats_[dir];
 
-      if (policy == Policy::kReliable) {
+      if (policy == Policy::kReliable || policy == Policy::kLatest) {
         auto & queue = reliable_queues_[dir];
-        queue.push_back({msg, pub_it->second, bytes});
+        if (policy == Policy::kLatest) {
+          // Every queued entry is still waiting for the air (DrainReliable
+          // pops what it schedules), so all of this publisher's are stale.
+          for (auto q = queue.begin(); q != queue.end(); ) {
+            if (q->pub == pub_it->second) {
+              reliable_queue_bytes_[dir] -= q->bytes;
+              ++stats.drop_superseded;
+              q = queue.erase(q);
+            } else {
+              ++q;
+            }
+          }
+        }
+        queue.push_back({msg, pub_it->second, bytes, policy == Policy::kLatest});
         reliable_queue_bytes_[dir] += bytes;
         while (reliable_queue_bytes_[dir] > reliable_queue_max_bytes_ && queue.size() > 1) {
           reliable_queue_bytes_[dir] -= queue.front().bytes;
@@ -815,7 +889,9 @@ private:
             robot_names_[sender].c_str(), robot_names_[r].c_str(),
             reliable_queue_max_bytes_);
         }
-        DrainReliable(dir, ps, stats);
+        if (!progressive_) {
+          DrainReliable(dir, ps, stats);
+        }
         continue;
       }
 
@@ -867,10 +943,93 @@ private:
       airtime_tokens_ -= cost_s;
       ScheduleDelivery(front.pub, front.msg, cost_s);
       ++stats.relayed;
+      stats.latest_relayed += front.latest;
       stats.bytes_relayed += front.bytes;
       reliable_queue_bytes_[dir] -= front.bytes;
       queue.pop_front();
     }
+  }
+
+  // Progressive model, once per delivery tick: every link with something to
+  // send gets up to dt of air, the airtime balance split evenly among them.
+  void AdvanceTransmissions()
+  {
+    const rclcpp::Time now = get_clock()->now();
+    if (!tx_last_init_ || now < tx_last_) {
+      tx_last_ = now;
+      tx_last_init_ = true;
+      return;
+    }
+    const double dt = (now - tx_last_).seconds();
+    tx_last_ = now;
+    if (dt <= 0.0) {
+      return;
+    }
+    const size_t n = robot_names_.size();
+    std::vector<size_t> sending;
+    for (auto & [dir, queue] : reliable_queues_) {
+      InFlight & f = inflight_[dir];
+      const PairState & ps = pair_states_[PairKey(dir / n, dir % n)];
+      if (!ps.valid || !ps.connected) {
+        if (f.active && f.m.latest) {
+          // A stale partial frame is worth less than the newest whole one.
+          f.active = false;
+          ++stats_[dir].drop_aborted;
+        }
+        continue;
+      }
+      if (f.active || !queue.empty()) {
+        sending.push_back(dir);
+      }
+    }
+    if (sending.empty()) {
+      return;
+    }
+    RefillAirtime();
+    const size_t start = drain_offset_++ % sending.size();
+    for (size_t k = 0; k < sending.size() && airtime_tokens_ > 0.0; ++k) {
+      const size_t dir = sending[(start + k) % sending.size()];
+      const double air = std::min(dt, airtime_tokens_ / double(sending.size() - k));
+      airtime_tokens_ -= Transmit(dir, air);
+    }
+  }
+
+  // Sends up to air seconds on one link at its current tier; returns the air
+  // used. Starts queued messages as earlier ones finish.
+  double Transmit(size_t dir, double air)
+  {
+    const size_t n = robot_names_.size();
+    const double bps = pair_states_[PairKey(dir / n, dir % n)].bandwidth_mbps * 1e6;
+    auto & queue = reliable_queues_[dir];
+    InFlight & f = inflight_[dir];
+    LinkStats & stats = stats_[dir];
+    double used = 0.0;
+    while (used < air) {
+      if (!f.active) {
+        if (queue.empty()) {
+          break;
+        }
+        f.m = queue.front();
+        queue.pop_front();
+        reliable_queue_bytes_[dir] -= f.m.bytes;
+        f.bits_left = f.m.bytes * 8.0;
+        f.active = true;
+      }
+      const double need = f.bits_left / bps;
+      if (need > air - used) {
+        f.bits_left -= (air - used) * bps;
+        used = air;
+        break;
+      }
+      used += need;
+      f.active = false;
+      ScheduleDelivery(f.m.pub, f.m.msg, 0.0);
+      ++stats.relayed;
+      stats.latest_relayed += f.m.latest;
+      stats.bytes_relayed += f.m.bytes;
+      f.m = QueuedMsg{};
+    }
+    return used;
   }
 
   void RefillAirtime()
@@ -902,7 +1061,9 @@ private:
   void OnDeliveryTimer()
   {
     // Drain backlogs first (rotating start so no link starves the others)...
-    if (!reliable_queues_.empty()) {
+    if (progressive_) {
+      AdvanceTransmissions();
+    } else if (!reliable_queues_.empty()) {
       std::vector<size_t> keys;
       keys.reserve(reliable_queues_.size());
       for (const auto & [dir, q] : reliable_queues_) {
@@ -961,6 +1122,10 @@ private:
       if (qb != reliable_queue_bytes_.end()) {
         queue_bytes = qb->second;
       }
+      const auto fl = inflight_.find(dir);
+      if (fl != inflight_.end() && fl->second.active) {
+        queue_bytes += static_cast<size_t>(std::ceil(fl->second.bits_left / 8.0));
+      }
       ss << (first ? "" : ",")
          << "{\"from\":\"" << robot_names_[dir / n] << "\",\"to\":\"" << robot_names_[dir % n]
          << "\",\"relayed\":" << s.relayed
@@ -969,6 +1134,9 @@ private:
          << ",\"drop_airtime\":" << s.drop_airtime
          << ",\"drop_disconnected\":" << s.drop_disconnected
          << ",\"drop_overflow\":" << s.drop_overflow
+         << ",\"drop_superseded\":" << s.drop_superseded
+         << ",\"drop_aborted\":" << s.drop_aborted
+         << ",\"latest_relayed\":" << s.latest_relayed
          << ",\"backlog_bytes\":" << queue_bytes << "}";
       first = false;
     }
@@ -1001,6 +1169,8 @@ private:
   double pose_timeout_s_;
   size_t reliable_queue_max_bytes_;
   size_t rx_qos_depth_;
+  size_t latest_qos_depth_ = 2;
+  bool progressive_ = false;
 
   // world + poses
   std::map<std::string, size_t> name_to_idx_;
@@ -1038,6 +1208,11 @@ private:
   std::priority_queue<Delivery, std::vector<Delivery>, std::greater<Delivery>> deliveries_;
   uint64_t next_seq_ = 0;
   size_t drain_offset_ = 0;
+
+  // progressive model
+  std::map<size_t, InFlight> inflight_;
+  rclcpp::Time tx_last_;
+  bool tx_last_init_ = false;
 
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr link_states_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr stats_pub_, robot_index_pub_;

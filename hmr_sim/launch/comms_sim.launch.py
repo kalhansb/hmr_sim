@@ -27,6 +27,13 @@ Optional:
   best_effort_priority:=true          (default: the params file's value, false)
                                       best-effort messages skip the airtime
                                       admission check (still charged)
+  map_stream:=full                    (default: the params file, delta)
+                                      relay scovox_full with the latest policy
+                                      instead of scovox_bin (DESIGN_gen34 §12)
+  transmission_model:=progressive     (default: the params file, admission)
+                                      one message on the air per link, sent
+                                      at the current tier, delivered FIFO
+                                      (DESIGN_gen34 §12.12)
 
 Radio/relay parameters live in the params file; robot_names, world_sdf, seed and
 tx_power_dbm resolved here are injected on top of it.
@@ -193,6 +200,41 @@ def generate_launch_description():
         overrides['best_effort_priority'] = as_bool(v)
         print(f'--- comms_sim best_effort_priority override: '
               f'{overrides["best_effort_priority"]} ---')
+
+    # Which map stream crosses the radio. delta (the params file as written):
+    # scovox_bin on the reliable FIFO. full: the whole-map frames on
+    # scovox_full with the latest policy, and scovox_bin off the radio
+    # entirely (DESIGN_gen34 §12). The swap edits the params file's own lists,
+    # so any other topic in them is kept.
+    if 'map_stream' in cli:
+        v = cli['map_stream'].strip().lower()
+        if v not in ('delta', 'full'):
+            raise ValueError("map_stream:= must be delta or full, "
+                             f"got '{cli['map_stream']}'")
+        if v == 'full':
+            with open(params_file) as f:
+                pf = (yaml.safe_load(f) or {}).get('hmr_comms_sim', {}) \
+                    .get('ros__parameters', {})
+            rel = [t for t in pf.get('reliable_topics', [])
+                   if t and t != 'scovox_node/scovox_bin']
+            lat = [t for t in pf.get('latest_topics', []) if t]
+            if 'scovox_node/scovox_full' not in lat:
+                lat.append('scovox_node/scovox_full')
+            # An override cannot carry an empty list; the node drops "".
+            overrides['reliable_topics'] = rel or ['']
+            overrides['latest_topics'] = lat
+        print(f'--- comms_sim map_stream override: {v} ---')
+
+    # How a queued reliable/latest message crosses the air. admission (the
+    # params file) is every banked run before gen-34 §12; progressive sends it
+    # bit by bit at the tier in force and delivers it when complete.
+    if 'transmission_model' in cli:
+        v = cli['transmission_model'].strip().lower()
+        if v not in ('admission', 'progressive'):
+            raise ValueError('transmission_model:= must be admission or '
+                             f"progressive, got '{cli['transmission_model']}'")
+        overrides['transmission_model'] = v
+        print(f'--- comms_sim transmission_model override: {v} ---')
 
     return LaunchDescription([
         Node(

@@ -17,6 +17,15 @@ hmr_comms_sim:
     # receiver's merged map, which would confound the map-merging experiments.
     reliable_topics: ["scovox_node/scovox_bin"]
 
+    # Topics relayed with the "latest" policy: reliable, but a new message
+    # removes any older one from the same sender still queued for that
+    # receiver (drop_superseded; a message on the air is never cancelled). For
+    # streams whose every message is a whole state: the full-map frames of the
+    # gen-34 full-map arm (DESIGN_gen34 §12), switched on per run by
+    # comms_sim.launch.py map_stream:=full. Empty entries are ignored, so [""]
+    # is an empty list.
+    latest_topics: [""]
+
     # Topics relayed with the "best-effort" policy: dropped when the link is
     # down, when the shared channel is out of airtime, or by the per-message
     # BER coin flip. Use for streams where the latest sample supersedes older
@@ -98,6 +107,18 @@ hmr_comms_sim:
     # dropped at the reader. Size as worst_outage_s * share_rate_hz * margin.
     # (notes: comms-rx-qos-depth)
     rx_qos_depth: 4000
+    # Depth for latest topics instead (source subscription and rx publisher).
+    # Each message supersedes the last, and a ~10 MB map frame times 4000 is
+    # memory no run has.
+    latest_qos_depth: 2
+
+    # admission: a queued reliable/latest message is admitted whole at the
+    # tier in force and delivered at now + bits/tier, whatever the link does
+    # next (every run before gen-34 §12). progressive: one message on the air
+    # per directional link, sent at the current tier each delivery tick,
+    # delivered FIFO when complete; a latest message cut by a link drop is
+    # aborted. The runner sets it per run (TX_MODEL); see DESIGN_gen34 §12.12.
+    transmission_model: admission
 
     # --- reproducibility ----------------------------------------------------
     seed: 42                  # link fading is a pure function of (seed, tick)
