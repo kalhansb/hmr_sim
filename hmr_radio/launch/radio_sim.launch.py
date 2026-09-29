@@ -95,8 +95,9 @@ def resolve_profile(arg, radio_share):
     with open(path) as f:
         prof = (yaml.safe_load(f) or {}).get('hmr_comms_sim', {}).get('ros__parameters', {})
     stack = prof.get('radio_stack')
-    if stack not in ('v1', 'v2_prop'):
-        raise ValueError(f"profile {path}: radio_stack must be v1 or v2_prop, got '{stack}'")
+    if stack not in ('v1', 'v2_prop', 'v2_phy'):
+        raise ValueError(
+            f"profile {path}: radio_stack must be v1, v2_prop or v2_phy, got '{stack}'")
     return path, stack
 
 

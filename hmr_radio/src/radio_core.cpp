@@ -114,8 +114,8 @@ Profile LoadProfileYaml(const std::string & path)
   const std::string stack = m["radio_stack"] ? m["radio_stack"].as<std::string>() : "v1";
   if (stack == "v1") {
     p.model = Model::kV1;
-  } else if (stack == "v2_prop") {
-    p.model = Model::kV2;
+  } else if (stack == "v2_prop" || stack == "v2_phy") {
+    p.model = Model::kV2;   // v2_phy's PHY and MAC sit in the node, above this
   } else {
     throw std::runtime_error("radio profile '" + path + "': unknown radio_stack " + stack);
   }

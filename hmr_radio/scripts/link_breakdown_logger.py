@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Log hmr_radio's ~/link_breakdown to CSV and ~/radio_regime to a JSON sidecar.
+Under radio_stack v2_phy, ~/link_mac goes to link_mac.csv beside them.
 
 link_breakdown says where each link's loss comes from, one row per pair per
 tick; its column names travel in the latched radio_regime message and are
@@ -8,7 +9,8 @@ declare. Invalid rows (valid == 0, a pair without two fresh poses) are counted
 and skipped, as link_logger.py does for link_states.
 
   link_breakdown_logger.py --out <cell>/link_breakdown.csv
-    -> link_breakdown.csv, and radio_regime.json next to it
+    -> link_breakdown.csv, and radio_regime.json next to it; link_mac.csv
+       (one row per directed link per tick) only once ~/link_mac publishes
 """
 
 import argparse
@@ -27,6 +29,9 @@ COLUMNS = ["i", "j", "distance_m", "pl_ground_db", "l_background_db",
            "l_trunks_db", "l_bushes_db", "l_veg_db", "l_ridges_db",
            "l_range_db", "fade_db", "path_loss_db", "snr_db",
            "trunks_on_link", "valid"]
+MAC_COLUMNS = ["i", "j", "mcs", "phy_rate_mbps", "mpdu_per", "busy_frac",
+               "goodput_mbps", "hidden_loss", "collision_p", "backlog_bytes",
+               "connected", "valid"]
 
 
 class BreakdownLogger(Node):
@@ -41,8 +46,15 @@ class BreakdownLogger(Node):
         self.masked = 0
         self.refused = 0
         self.since_flush = 0
+        self.mac_path = os.path.join(os.path.dirname(out_path) or ".", "link_mac.csv")
+        self.mac_out = None
+        self.mac_rows = 0
+        self.mac_masked = 0
+        self.mac_refused = 0
         self.create_subscription(Float64MultiArray, f"{ns}/link_breakdown",
                                  self.cb, 50)
+        self.create_subscription(Float64MultiArray, f"{ns}/link_mac",
+                                 self.on_mac, 50)
         self.create_subscription(
             String, f"{ns}/radio_regime", self.on_regime,
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
@@ -60,6 +72,12 @@ class BreakdownLogger(Node):
                 f"radio_regime declares link_breakdown columns {cols}, this "
                 f"script writes {COLUMNS}. Update the script before trusting "
                 "the CSV.")
+        mac_cols = regime.get("link_mac_columns")
+        if mac_cols is not None and mac_cols != MAC_COLUMNS:
+            self.get_logger().error(
+                f"radio_regime declares link_mac columns {mac_cols}, this "
+                f"script writes {MAC_COLUMNS}. Update the script before "
+                "trusting link_mac.csv.")
         with open(self.regime_path, "w") as fh:
             json.dump(regime, fh, indent=1, sort_keys=True)
             fh.write("\n")
@@ -89,12 +107,47 @@ class BreakdownLogger(Node):
         if self.since_flush >= 500:
             self.since_flush = 0
             self.out.flush()
+            if self.mac_out is not None:
+                self.mac_out.flush()
+
+    def on_mac(self, msg):
+        t = self.get_clock().now().nanoseconds * 1e-9
+        stride = len(MAC_COLUMNS)
+        declared = int(msg.layout.dim[1].size) if len(msg.layout.dim) >= 2 else None
+        if declared != stride or len(msg.data) % stride:
+            self.mac_refused += 1
+            self.get_logger().error(
+                f"link_mac declares {declared} columns for {len(msg.data)} "
+                f"values; this script writes {stride}. Message skipped.",
+                throttle_duration_sec=10.0)
+            return
+        if self.mac_out is None:
+            self.mac_out = open(self.mac_path, "w", newline="")
+            self.mac_w = csv.writer(self.mac_out)
+            self.mac_w.writerow(["t_sim"] + MAC_COLUMNS)
+            self.get_logger().info(f"logging link_mac -> {self.mac_path}")
+        d = list(msg.data)
+        for k in range(0, len(d), stride):
+            row = d[k:k + stride]
+            if row[11] <= 0.0:
+                self.mac_masked += 1
+                continue
+            self.mac_w.writerow([f"{t:.3f}"] + [f"{v:g}" for v in row])
+            self.mac_rows += 1
+            self.since_flush += 1
 
     def destroy_node(self):
         self.out.flush()
         self.out.close()
+        if self.mac_out is not None:
+            self.mac_out.flush()
+            self.mac_out.close()
         print(f"[link_breakdown_logger] rows={self.rows} masked={self.masked} "
               f"refused_msgs={self.refused}", file=sys.stderr, flush=True)
+        if self.mac_out is not None:
+            print(f"[link_breakdown_logger] link_mac rows={self.mac_rows} "
+                  f"masked={self.mac_masked} refused_msgs={self.mac_refused}",
+                  file=sys.stderr, flush=True)
         return super().destroy_node()
 
 

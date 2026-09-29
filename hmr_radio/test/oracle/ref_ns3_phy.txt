@@ -1,0 +1,23 @@
+# ns3_per
+MCS0 rate 7.2 Mbps PER0.9 3.079 PER0.5 3.430 PER0.1 3.968  per@10dB 0
+MCS1 rate 14.4 Mbps PER0.9 6.089 PER0.5 6.441 PER0.1 6.979  per@10dB 6.77773e-08
+MCS2 rate 21.7 Mbps PER0.9 8.935 PER0.5 9.303 PER0.1 9.873  per@10dB 0.0659963
+MCS3 rate 28.9 Mbps PER0.9 12.530 PER0.5 12.921 PER0.1 13.514  per@10dB 1
+MCS4 rate 43.3 Mbps PER0.9 15.627 PER0.5 16.018 PER0.1 16.620  per@10dB 1
+MCS5 rate 57.8 Mbps PER0.9 20.366 PER0.5 20.762 PER0.1 21.365  per@10dB 1
+MCS6 rate 65.0 Mbps PER0.9 21.583 PER0.5 21.997 PER0.1 22.630  per@10dB 1
+MCS7 rate 72.2 Mbps PER0.9 22.747 PER0.5 23.161 PER0.1 23.795  per@10dB 1
+# ns3_timing
+PpduMaxTime HT_MF 5484.000 us
+MCS0   1544 B -> 1755.6 us
+MCS0   4632 B -> 5179.2 us
+MCS0  64848 B -> 71880.0 us
+MCS3   1544 B -> 470.4 us
+MCS3   4632 B -> 1327.2 us
+MCS3  64848 B -> 18002.4 us
+MCS7   1544 B -> 214.8 us
+MCS7   4632 B -> 556.8 us
+MCS7  64848 B -> 7227.6 us
+OfdmRate6Mbps 32 B (compressed BA) -> 74.0 us
+OfdmRate12Mbps 32 B (compressed BA) -> 50.0 us
+OfdmRate24Mbps 32 B (compressed BA) -> 38.0 us

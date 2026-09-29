@@ -8,9 +8,11 @@ find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-# Propagation core: one implementation shared by the node, the CLI and the tests
+# Propagation, PHY and MAC core: one implementation shared by the node, the CLI
+# and the tests
 add_library(radio_core STATIC
   src/radio_core.cpp
+  src/radio_mac.cpp
 )
 target_include_directories(radio_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -60,6 +62,9 @@ if(BUILD_TESTING)
   ament_add_gtest(test_radio_core test/test_radio_core.cpp)
   target_link_libraries(test_radio_core radio_core)
   target_compile_definitions(test_radio_core PRIVATE HMR_RADIO_SRC="${CMAKE_CURRENT_SOURCE_DIR}")
+  # PHY/MAC against constants recorded from ns-3 3.44 (test/oracle/README.md)
+  ament_add_gtest(test_radio_mac test/test_radio_mac.cpp)
+  target_link_libraries(test_radio_mac radio_core)
 endif()
 
 ament_package()

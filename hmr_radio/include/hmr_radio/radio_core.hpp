@@ -89,7 +89,8 @@ double NoiseDbm(const Profile & p);
 // Reads a profile yaml (config/profiles/*.yaml): the node's own parameter file,
 // so the CLI and the tests load exactly what the node loads. Accepts the
 // hmr_comms_sim/ros__parameters nesting or a flat map. Keys it does not know
-// are ignored; radio_stack decides the model (v1 or v2_prop).
+// are ignored; radio_stack decides the model (v1, or v2 for v2_prop and
+// v2_phy, which share the propagation).
 Profile LoadProfileYaml(const std::string & path);
 
 // ---- P.526 building blocks ----------------------------------------------------

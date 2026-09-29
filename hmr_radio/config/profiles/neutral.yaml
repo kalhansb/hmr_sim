@@ -5,12 +5,15 @@
 # hash changes); never pool across regimes.
 hmr_comms_sim:
   ros__parameters:
-    radio_stack: v2_prop     # §2.14 propagation on v1's rate tiers and airtime
+    # §2.14 propagation, then §13's 802.11n PHY and analytic MAC. The MAC keys
+    # (mac_*, minstrel_*) keep radio_mac.hpp's defaults, listed in ~/radio_regime.
+    radio_stack: v2_phy
     radio_profile: neutral
     fade_mode: counter       # per-link fade, a pure function of (seed, link, tick)
     ground_model: two_ray    # d_b = 4 h_t h_r / lambda (5.12 m at 0.4/0.4 m)
     frequency_hz: 2.4e9
-    # Radio (§2.8, §2.14): typical 802.11n, MCS0 at 2 dB SNR, budget 116 dB.
+    # Radio (§2.8, §2.14, §13): typical 802.11n. Budget 114 dB to the 4 dB
+    # preamble-detection threshold (§13; §2.14 quoted 116 dB to MCS0 at 2 dB).
     tx_power_dbm: 20.0
     tx_gain_dbi: 2.0
     rx_gain_dbi: 2.0

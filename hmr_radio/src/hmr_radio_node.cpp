@@ -1,9 +1,11 @@
-// hmr_radio_node — radio emulator v2 (DESIGN_radio_v2.md §2.14 and §12).
+// hmr_radio_node — radio emulator v2 (DESIGN_radio_v2.md §2.14, §12 and §13).
 //
 // A copy of hmr_sim's hmr_comms_sim_node (v1, pinned and left untouched) whose
 // relay, airtime, transmission models, stats and diagnostics are unchanged
-// line for line. Only the link computation differs: it calls hmr_radio's core
-// library, the same code radio_probe and the known-answer tests run.
+// line for line under radio_stack v1 and v2_prop. Only the link computation
+// differs there: it calls hmr_radio's core library, the same code radio_probe
+// and the known-answer tests run. v2_phy replaces the rate tiers and the
+// airtime bucket with radio_mac (below); the relay queues are v1's.
 //
 // It runs under the node name hmr_comms_sim, so every consumer (link_logger,
 // comms_gates, the planners' link gate) reads the same topics as with v1.
@@ -18,6 +20,12 @@
 //                        gamma_explicit, capped by A_m; v1's rate tiers and
 //                        shared airtime. gamma_explicit is measured once at
 //                        startup from a fixed sample, never from the cell seed.
+//   radio_stack v2_phy   v2_prop's propagation, then §13's 802.11n PHY and MAC
+//                        (radio_mac): HT MCS0-7 under the NIST error model, a
+//                        Minstrel-like MCS per pair, and the air shared by an
+//                        analytic EDCA model (Bianchi per carrier-sense domain,
+//                        hidden robots, spatial reuse) in place of v1's single
+//                        airtime bucket. Needs transmission_model progressive.
 //   Fading: AR(1). fade_mode counter draws each link's fade as a pure function
 //   of (seed, link, tick), so it never depends on traffic or on other links.
 //
@@ -29,6 +37,9 @@
 //                     ~/radio_regime: where each link's loss comes from.
 //   ~/radio_regime    latched JSON: every effective radio parameter, the world
 //                     hash, gamma_explicit and the regime hash over all of it.
+//   ~/link_mac        v2_phy only. Float64MultiArray, one row per directed
+//                     link, columns in ~/radio_regime: MCS, PER, and the MAC's
+//                     busy time, goodput and losses over the last link period.
 // Moved comments (the relay code's "(notes: ...)" tags): hmr_sim/docs/hmr_sim_code_notes.md
 
 #include <rclcpp/rclcpp.hpp>
@@ -37,6 +48,7 @@
 #include <std_msgs/msg/string.hpp>
 
 #include "hmr_radio/radio_core.hpp"
+#include "hmr_radio/radio_mac.hpp"
 
 #include <algorithm>
 #include <array>
@@ -157,6 +169,31 @@ public:
       p.antenna_height_m = declare_parameter<double>("antenna_height_m", d.antenna_height_m);
       p.fade_sigma_db = declare_parameter<double>("fade_sigma_db", d.fade_sigma_db);
       p.fade_alpha = declare_parameter<double>("fade_alpha", d.fade_alpha);
+    }
+    // 802.11n MAC, radio_stack v2_phy only (DESIGN_radio_v2.md §13).
+    {
+      hmr_radio::MacParams d;
+      auto & m = mac_;
+      m.slot_s = 1e-6 * declare_parameter<double>("mac_slot_us", 1e6 * d.slot_s);
+      m.sifs_s = 1e-6 * declare_parameter<double>("mac_sifs_us", 1e6 * d.sifs_s);
+      m.aifsn = static_cast<int>(declare_parameter<int64_t>("mac_aifsn", d.aifsn));
+      m.cw_min = static_cast<int>(declare_parameter<int64_t>("mac_cw_min", d.cw_min));
+      m.cw_max = static_cast<int>(declare_parameter<int64_t>("mac_cw_max", d.cw_max));
+      m.retry_limit = static_cast<int>(declare_parameter<int64_t>("mac_retry_limit", d.retry_limit));
+      m.mpdu_payload_bytes = static_cast<int>(
+        declare_parameter<int64_t>("mac_mpdu_payload_bytes", d.mpdu_payload_bytes));
+      m.mpdu_overhead_bytes = static_cast<int>(
+        declare_parameter<int64_t>("mac_mpdu_overhead_bytes", d.mpdu_overhead_bytes));
+      m.max_ampdu_bytes = static_cast<int>(
+        declare_parameter<int64_t>("mac_max_ampdu_bytes", d.max_ampdu_bytes));
+      m.max_ampdu_mpdus = static_cast<int>(
+        declare_parameter<int64_t>("mac_max_ampdu_mpdus", d.max_ampdu_mpdus));
+      m.ppdu_max_s = 1e-6 * declare_parameter<double>("mac_ppdu_max_us", 1e6 * d.ppdu_max_s);
+      m.detect_snr_db = declare_parameter<double>("mac_detect_snr_db", d.detect_snr_db);
+      m.minstrel_keep_per_100ms =
+        declare_parameter<double>("minstrel_keep_per_100ms", d.minstrel_keep_per_100ms);
+      m.minstrel_min_success =
+        declare_parameter<double>("minstrel_min_success", d.minstrel_min_success);
     }
     // Per robot, in robot_names order; empty = antenna_height_m for all.
     antenna_heights_m_ = declare_parameter<std::vector<double>>(
@@ -328,6 +365,7 @@ private:
     double bandwidth_mbps = 72.0;
     hmr_radio::Breakdown bd;
     std::shared_ptr<hmr_radio::CounterFade> fade;   // fade_mode counter
+    hmr_radio::RateControl rate;                    // v2_phy
   };
 
   struct PendingTopic
@@ -378,6 +416,17 @@ private:
     uint64_t latest_relayed = 0;    // latest messages delivered (in relayed too)
   };
 
+  // v2_phy, per directed link: cumulative for ~/stats, p_* since the last
+  // ~/link_mac row.
+  struct MacStats
+  {
+    double busy_s = 0.0;     // time with a backlog on a connected link
+    double txops = 0.0;      // expected successful TXOPs
+    double hidden_s = 0.0;   // busy_s weighted by hidden_loss
+    std::array<double, hmr_radio::kNumMcs> mcs_s{};   // connected time at each MCS
+    double p_busy_s = 0.0, p_bits = 0.0, p_hidden_s = 0.0, p_coll_s = 0.0;
+  };
+
   size_t PairKey(size_t i, size_t j) const
   {
     return std::min(i, j) * robot_names_.size() + std::max(i, j);
@@ -394,11 +443,14 @@ private:
       p.model = hmr_radio::Model::kV1;
     } else if (radio_stack_ == "v2_prop") {
       p.model = hmr_radio::Model::kV2;
+    } else if (radio_stack_ == "v2_phy") {
+      p.model = hmr_radio::Model::kV2;
+      phy_ = true;
     } else {
       RCLCPP_FATAL(get_logger(),
         "radio_stack '%s' is not an allowed stack. Allowed: v1 (v1's link "
         "equation), v2_prop (DESIGN_radio_v2 §2.14 propagation on v1 tiers and "
-        "airtime).", radio_stack_.c_str());
+        "airtime), v2_phy (§2.14 propagation, §13 PHY and MAC).", radio_stack_.c_str());
       throw std::runtime_error("bad radio_stack");
     }
     if (ground_model_ != "none" && ground_model_ != "two_ray") {
@@ -414,9 +466,16 @@ private:
     }
     legacy_fade_ = fade_mode_ == "legacy";
     if (p.model == hmr_radio::Model::kV2 && legacy_fade_) {
-      RCLCPP_FATAL(get_logger(), "radio_stack v2_prop needs fade_mode counter: the "
-        "legacy shared generator makes every link's fade depend on traffic.");
-      throw std::runtime_error("v2_prop with legacy fading");
+      RCLCPP_FATAL(get_logger(), "radio_stack %s needs fade_mode counter: the "
+        "legacy shared generator makes every link's fade depend on traffic.",
+        radio_stack_.c_str());
+      throw std::runtime_error("v2 stack with legacy fading");
+    }
+    if (phy_ && !progressive_) {
+      RCLCPP_FATAL(get_logger(), "radio_stack v2_phy needs transmission_model "
+        "progressive: its MAC shares the air on the delivery tick, which admission "
+        "does not have.");
+      throw std::runtime_error("v2_phy without progressive transmission");
     }
     if (!antenna_heights_m_.empty() && antenna_heights_m_.size() != n) {
       RCLCPP_FATAL(get_logger(), "antenna_heights_m has %zu entries for %zu robots.",
@@ -492,6 +551,24 @@ private:
     for (size_t i = 0; i < n; ++i) {
       kv.push_back({"antenna_height_m." + robot_names_[i], num(antenna_h_[i])});
     }
+    if (phy_) {
+      const auto & m = mac_;
+      const std::vector<std::pair<std::string, std::string>> mac_kv = {
+        {"mac_slot_us", num(1e6 * m.slot_s)}, {"mac_sifs_us", num(1e6 * m.sifs_s)},
+        {"mac_aifsn", std::to_string(m.aifsn)}, {"mac_cw_min", std::to_string(m.cw_min)},
+        {"mac_cw_max", std::to_string(m.cw_max)},
+        {"mac_retry_limit", std::to_string(m.retry_limit)},
+        {"mac_mpdu_payload_bytes", std::to_string(m.mpdu_payload_bytes)},
+        {"mac_mpdu_overhead_bytes", std::to_string(m.mpdu_overhead_bytes)},
+        {"mac_max_ampdu_bytes", std::to_string(m.max_ampdu_bytes)},
+        {"mac_max_ampdu_mpdus", std::to_string(m.max_ampdu_mpdus)},
+        {"mac_ppdu_max_us", num(1e6 * m.ppdu_max_s)},
+        {"mac_detect_snr_db", num(m.detect_snr_db)},
+        {"minstrel_keep_per_100ms", num(m.minstrel_keep_per_100ms)},
+        {"minstrel_min_success", num(m.minstrel_min_success)},
+      };
+      kv.insert(kv.end(), mac_kv.begin(), mac_kv.end());
+    }
     json << "{";
     for (size_t k = 0; k < kv.size(); ++k) {
       canon << kv[k].first << "=" << kv[k].second << "\n";
@@ -505,7 +582,16 @@ private:
     for (size_t k = 0; k < kBreakdownCols; ++k) {
       json << (k ? "," : "") << "\"" << kBreakdownNames[k] << "\"";
     }
-    json << "]}";
+    json << "]";
+    if (phy_) {
+      json << ",\"link_mac_columns\":[";
+      for (size_t k = 0; k < kLinkMacCols; ++k) {
+        json << (k ? "," : "") << "\"" << kLinkMacNames[k] << "\"";
+      }
+      json << "]";
+      link_mac_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>("~/link_mac", 10);
+    }
+    json << "}";
     radio_regime_pub_ = create_publisher<std_msgs::msg::String>(
       "~/radio_regime", rclcpp::QoS(1).transient_local());
     std_msgs::msg::String msg;
@@ -606,6 +692,9 @@ private:
     }
     link_states_pub_->publish(out);
     link_breakdown_pub_->publish(bd_out);
+    if (phy_) {
+      PublishLinkMac();
+    }
   }
 
   void ComputePair(size_t i, size_t j, PairState & ps)
@@ -644,24 +733,35 @@ private:
     const double distance = ps.bd.distance_m;
     const double path_loss = ps.bd.path_loss_db;
 
-    // Tier first, then BER at that tier. NextBandwidth reads only snr_history
-    // and ps.bandwidth_mbps and writes only snr_history, so the order leaves
-    // every delivery decision unchanged. (notes: comms-sim-tier-before-ber)
-    ps.bandwidth_mbps = NextBandwidth(ps, snr_db);
-    ps.connected = ps.bandwidth_mbps > 0.0;
-
     double ber;
-    if (ps.bandwidth_mbps <= 0.0) {
-      // No gear engaged: BER is undefined and nothing gets through, so publish
-      // 1.0, as an invalid row does. Consumers should mask on connected; this
-      // keeps an unmasked read wrong in the safe direction.
-      // (notes: comms-sim-ber-when-no-gear)
-      ber = 1.0;
+    if (phy_) {
+      // v2_phy: up and down on v1's lowest-tier hysteresis at the detection
+      // threshold; the rate of the MCS the rate control holds, and the coded
+      // bit error probability at that MCS.
+      ps.connected = NextConnected(ps, snr_db);
+      const int mcs = ps.rate.Update(mac_, snr_db, 1.0 / std::max(link_rate_hz_, 0.1));
+      ps.bandwidth_mbps = ps.connected ? hmr_radio::McsRateBps(mcs) / 1e6 : 0.0;
+      ber = ps.connected ?
+        hmr_radio::CodedBitErrorProb(mcs, std::pow(10.0, snr_db / 10.0)) : 1.0;
     } else {
-      const double spectral_efficiency = ps.bandwidth_mbps * 1e6 / kChannelBandwidthHz;
-      ber = trees_on_link == 0 ?
-        AwgnQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_dbm_), spectral_efficiency) :
-        RayleighQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_dbm_), spectral_efficiency);
+      // Tier first, then BER at that tier. NextBandwidth reads only snr_history
+      // and ps.bandwidth_mbps and writes only snr_history, so the order leaves
+      // every delivery decision unchanged. (notes: comms-sim-tier-before-ber)
+      ps.bandwidth_mbps = NextBandwidth(ps, snr_db);
+      ps.connected = ps.bandwidth_mbps > 0.0;
+
+      if (ps.bandwidth_mbps <= 0.0) {
+        // No gear engaged: BER is undefined and nothing gets through, so publish
+        // 1.0, as an invalid row does. Consumers should mask on connected; this
+        // keeps an unmasked read wrong in the safe direction.
+        // (notes: comms-sim-ber-when-no-gear)
+        ber = 1.0;
+      } else {
+        const double spectral_efficiency = ps.bandwidth_mbps * 1e6 / kChannelBandwidthHz;
+        ber = trees_on_link == 0 ?
+          AwgnQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_dbm_), spectral_efficiency) :
+          RayleighQam64Ber(DbmToPow(rx_dbm), DbmToPow(noise_dbm_), spectral_efficiency);
+      }
     }
     ber = std::clamp(ber, 0.0, 1.0);
 
@@ -862,6 +962,19 @@ private:
         ++stats.drop_disconnected;
         continue;
       }
+      if (phy_) {
+        // Queued on its link and sent ahead of the reliable queue; lost only
+        // when an MPDU runs out of retries (SendBits).
+        auto & be = be_queues_[dir];
+        be.push_back({msg, pub_it->second, bytes, false});
+        be_queue_bytes_[dir] += bytes;
+        while (be_queue_bytes_[dir] > reliable_queue_max_bytes_ && be.size() > 1) {
+          be_queue_bytes_[dir] -= be.front().bytes;
+          be.pop_front();
+          ++stats.drop_overflow;
+        }
+        continue;
+      }
       const size_t bits = bytes * 8;
       // Delivery is the bandwidth state machine's call (ps.connected, checked
       // above). Link quality reaches the experiment through the tier, as
@@ -925,6 +1038,10 @@ private:
     const double dt = (now - tx_last_).seconds();
     tx_last_ = now;
     if (dt <= 0.0) {
+      return;
+    }
+    if (phy_) {
+      AdvancePhy(dt);
       return;
     }
     const size_t n = robot_names_.size();
@@ -992,6 +1109,230 @@ private:
       f.m = QueuedMsg{};
     }
     return used;
+  }
+
+  // ---- v2_phy: the air shared by radio_mac (DESIGN_radio_v2.md §13) --------
+  // Every directed link with a backlog on a connected pair contends.
+  // ShareChannel gives each its goodput for the current set, and the tick
+  // advances in steps that end when a link runs dry, so the air it leaves goes
+  // to the others.
+  void AdvancePhy(double dt)
+  {
+    const size_t n = robot_names_.size();
+    hmr_radio::ShareInput in;
+    in.n = static_cast<int>(n);
+    in.noise_dbm = noise_dbm_;
+    in.hear.assign(n * n, 0);
+    in.rx_dbm.assign(n * n, -300.0);
+    in.snr_db.assign(n * n, -300.0);
+    in.mcs.assign(n * n, 0);
+    std::vector<size_t> dirs;
+    for (size_t s = 0; s < n; ++s) {
+      for (size_t r = 0; r < n; ++r) {
+        if (s == r) {
+          continue;
+        }
+        const size_t dir = DirKey(s, r);
+        const PairState & ps = pair_states_[PairKey(s, r)];
+        if (ps.valid) {
+          in.rx_dbm[dir] = ps.bd.rx_dbm;
+          in.snr_db[dir] = ps.snr_db;
+          in.hear[dir] = ps.snr_db >= mac_.detect_snr_db;
+          in.mcs[dir] = ps.rate.mcs();
+        }
+        if (!ps.valid || !ps.connected) {
+          const auto f = inflight_.find(dir);
+          if (f != inflight_.end() && f->second.active && f->second.m.latest) {
+            // A stale partial frame is worth less than the newest whole one.
+            f->second.active = false;
+            ++stats_[dir].drop_aborted;
+          }
+          // Best-effort frames on a dead link run out of retries.
+          const auto bf = be_inflight_.find(dir);
+          if (bf != be_inflight_.end() && bf->second.active) {
+            bf->second.active = false;
+            ++stats_[dir].drop_disconnected;
+          }
+          const auto bq = be_queues_.find(dir);
+          if (bq != be_queues_.end() && !bq->second.empty()) {
+            stats_[dir].drop_disconnected += bq->second.size();
+            bq->second.clear();
+            be_queue_bytes_[dir] = 0;
+          }
+          continue;
+        }
+        if (BacklogBits(dir) > 0.0) {
+          dirs.push_back(dir);
+        }
+      }
+    }
+    double left = dt;
+    for (size_t step = 0; left > 0.0 && !dirs.empty() && step <= n * n; ++step) {
+      in.active.assign(n * n, 0);
+      in.backlog_bytes.assign(n * n, 0.0);
+      for (const size_t dir : dirs) {
+        in.active[dir] = 1;
+        in.backlog_bytes[dir] = BacklogBits(dir) / 8.0;
+      }
+      const hmr_radio::ShareOutput out = hmr_radio::ShareChannel(mac_, in);
+      double t = left;
+      for (const size_t dir : dirs) {
+        if (out.goodput_bps[dir] > 0.0) {
+          t = std::min(t, BacklogBits(dir) / out.goodput_bps[dir]);
+        }
+      }
+      std::vector<size_t> still;
+      for (const size_t dir : dirs) {
+        const double per = hmr_radio::MpduPer(in.mcs[dir], in.snr_db[dir],
+            hmr_radio::MpduBytes(mac_));
+        const double coll = out.collision_p[dir / n];
+        MacStats & ms = mac_stats_[dir];
+        ms.busy_s += t;
+        ms.txops += t * out.txop_rate[dir];
+        ms.hidden_s += t * out.hidden_loss[dir];
+        ms.p_busy_s += t;
+        ms.p_hidden_s += t * out.hidden_loss[dir];
+        ms.p_coll_s += t * coll;
+        ms.p_bits += SendBits(dir, out.goodput_bps[dir] * t,
+            1.0 - (1.0 - coll) * (1.0 - out.hidden_loss[dir]) * (1.0 - per));
+        if (BacklogBits(dir) > 0.0) {
+          still.push_back(dir);
+        }
+      }
+      dirs.swap(still);
+      left -= t;
+    }
+  }
+
+  // v2_phy: sends up to bits on one link, best-effort first (fq_codel serves
+  // sparse flows ahead of bulk), then the reliable/latest queue in order. A
+  // best-effort message is lost when one of its MPDUs fails all retry_limit + 1
+  // attempts, each failing with probability q. Returns the bits used.
+  double SendBits(size_t dir, double bits, double q)
+  {
+    LinkStats & stats = stats_[dir];
+    double used = 0.0;
+    for (const bool be : {true, false}) {
+      auto & queue = be ? be_queues_[dir] : reliable_queues_[dir];
+      size_t & queue_bytes = be ? be_queue_bytes_[dir] : reliable_queue_bytes_[dir];
+      InFlight & f = be ? be_inflight_[dir] : inflight_[dir];
+      while (used < bits) {
+        if (!f.active) {
+          if (queue.empty()) {
+            break;
+          }
+          f.m = queue.front();
+          queue.pop_front();
+          queue_bytes -= f.m.bytes;
+          f.bits_left = f.m.bytes * 8.0;
+          f.active = true;
+        }
+        const double take = std::min(f.bits_left, bits - used);
+        f.bits_left -= take;
+        used += take;
+        if (f.bits_left > 1e-6) {
+          break;
+        }
+        f.active = false;
+        const double mpdus = std::ceil(f.m.bytes / double(mac_.mpdu_payload_bytes));
+        if (be && uniform_(drop_rng_) <
+          1.0 - std::pow(1.0 - std::pow(q, mac_.retry_limit + 1), mpdus))
+        {
+          ++stats.drop_ber;
+        } else {
+          ScheduleDelivery(f.m.pub, f.m.msg, 0.0);
+          ++stats.relayed;
+          stats.latest_relayed += f.m.latest;
+          stats.bytes_relayed += f.m.bytes;
+        }
+        f.m = QueuedMsg{};
+      }
+    }
+    return used;
+  }
+
+  // v2_phy: bits waiting on one link, in flight and queued, both policies.
+  double BacklogBits(size_t dir) const
+  {
+    double bits = 0.0;
+    for (const auto * fl : {&inflight_, &be_inflight_}) {
+      const auto f = fl->find(dir);
+      if (f != fl->end() && f->second.active) {
+        bits += f->second.bits_left;
+      }
+    }
+    for (const auto * qb : {&reliable_queue_bytes_, &be_queue_bytes_}) {
+      const auto b = qb->find(dir);
+      if (b != qb->end()) {
+        bits += 8.0 * b->second;
+      }
+    }
+    return bits;
+  }
+
+  // v2_phy: v1's lowest-tier hysteresis at the MAC's detection threshold: up
+  // after 8 of 8 samples above it, down once 3 of 8 fall below.
+  bool NextConnected(PairState & ps, double snr_db)
+  {
+    ps.snr_history.push_back(snr_db);
+    if (ps.snr_history.size() > 8) {
+      ps.snr_history.pop_front();
+    }
+    const double th = mac_.detect_snr_db;
+    if (ps.snr_history.size() < 8) {
+      return snr_db > th;
+    }
+    int high = 0, low = 0;
+    for (const double s : ps.snr_history) {
+      high += s > th;
+      low += s < th;
+    }
+    return ps.connected ? low < 3 : high == 8;
+  }
+
+  // v2_phy: one row per directed link for the link period just ended. The MAC
+  // columns are means over the time the link had a backlog (zero if none).
+  void PublishLinkMac()
+  {
+    const size_t n = robot_names_.size();
+    const double period = 1.0 / std::max(link_rate_hz_, 0.1);
+    std_msgs::msg::Float64MultiArray out;
+    out.layout.dim.resize(2);
+    out.layout.dim[0].label = "link";
+    out.layout.dim[0].size = n * (n - 1);
+    out.layout.dim[0].stride = n * (n - 1) * kLinkMacCols;
+    out.layout.dim[1].label = "field";
+    out.layout.dim[1].size = kLinkMacCols;
+    out.layout.dim[1].stride = kLinkMacCols;
+    out.data.reserve(n * (n - 1) * kLinkMacCols);
+    for (size_t s = 0; s < n; ++s) {
+      for (size_t r = 0; r < n; ++r) {
+        if (s == r) {
+          continue;
+        }
+        const size_t dir = DirKey(s, r);
+        const PairState & ps = pair_states_[PairKey(s, r)];
+        MacStats & ms = mac_stats_[dir];
+        const int mcs = ps.rate.mcs();
+        if (ps.valid && ps.connected) {
+          ms.mcs_s[mcs] += period;
+        }
+        const double busy = ms.p_busy_s;
+        const std::array<double, kLinkMacCols> row = {
+          static_cast<double>(s), static_cast<double>(r), static_cast<double>(mcs),
+          hmr_radio::McsRateBps(mcs) / 1e6,
+          ps.valid ? hmr_radio::MpduPer(mcs, ps.snr_db, hmr_radio::MpduBytes(mac_)) : 1.0,
+          busy / period,
+          busy > 0.0 ? ms.p_bits / busy / 1e6 : 0.0,
+          busy > 0.0 ? ms.p_hidden_s / busy : 0.0,
+          busy > 0.0 ? ms.p_coll_s / busy : 0.0,
+          std::ceil(BacklogBits(dir) / 8.0),
+          ps.connected ? 1.0 : 0.0, ps.valid ? 1.0 : 0.0};
+        out.data.insert(out.data.end(), row.begin(), row.end());
+        ms.p_busy_s = ms.p_bits = ms.p_hidden_s = ms.p_coll_s = 0.0;
+      }
+    }
+    link_mac_pub_->publish(out);
   }
 
   void RefillAirtime()
@@ -1088,6 +1429,9 @@ private:
       if (fl != inflight_.end() && fl->second.active) {
         queue_bytes += static_cast<size_t>(std::ceil(fl->second.bits_left / 8.0));
       }
+      if (phy_) {
+        queue_bytes = static_cast<size_t>(std::ceil(BacklogBits(dir) / 8.0));
+      }
       ss << (first ? "" : ",")
          << "{\"from\":\"" << robot_names_[dir / n] << "\",\"to\":\"" << robot_names_[dir % n]
          << "\",\"relayed\":" << s.relayed
@@ -1099,7 +1443,18 @@ private:
          << ",\"drop_superseded\":" << s.drop_superseded
          << ",\"drop_aborted\":" << s.drop_aborted
          << ",\"latest_relayed\":" << s.latest_relayed
-         << ",\"backlog_bytes\":" << queue_bytes << "}";
+         << ",\"backlog_bytes\":" << queue_bytes;
+      if (phy_) {
+        // v2_phy only, so v1 and v2_prop lines stay byte-identical.
+        const MacStats & ms = mac_stats_[dir];
+        ss << ",\"busy_s\":" << ms.busy_s << ",\"txops\":" << ms.txops
+           << ",\"hidden_s\":" << ms.hidden_s << ",\"mcs_s\":[";
+        for (int m = 0; m < hmr_radio::kNumMcs; ++m) {
+          ss << (m ? "," : "") << ms.mcs_s[m];
+        }
+        ss << "]";
+      }
+      ss << "}";
       first = false;
     }
     ss << "]}";
@@ -1117,6 +1472,10 @@ private:
   }
 
   static constexpr size_t kLinkStateCols = 10;
+  static constexpr size_t kLinkMacCols = 12;
+  static constexpr const char * kLinkMacNames[kLinkMacCols] = {
+    "i", "j", "mcs", "phy_rate_mbps", "mpdu_per", "busy_frac", "goodput_mbps",
+    "hidden_loss", "collision_p", "backlog_bytes", "connected", "valid"};
   static constexpr size_t kBreakdownCols = 15;
   static constexpr const char * kBreakdownNames[kBreakdownCols] = {
     "i", "j", "distance_m", "pl_ground_db", "l_background_db", "l_trunks_db",
@@ -1187,8 +1546,17 @@ private:
   rclcpp::Time tx_last_;
   bool tx_last_init_ = false;
 
+  // v2_phy: MAC parameters, best-effort queues (v1 sends those at once) and
+  // MAC diagnostics, keyed by DirKey
+  hmr_radio::MacParams mac_;
+  bool phy_ = false;
+  std::map<size_t, std::deque<QueuedMsg>> be_queues_;
+  std::map<size_t, size_t> be_queue_bytes_;
+  std::map<size_t, InFlight> be_inflight_;
+  std::map<size_t, MacStats> mac_stats_;
+
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr link_states_pub_,
-    link_breakdown_pub_;
+    link_breakdown_pub_, link_mac_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr stats_pub_, robot_index_pub_,
     radio_regime_pub_;
   rclcpp::TimerBase::SharedPtr link_timer_, delivery_timer_, discovery_timer_, stats_timer_;
