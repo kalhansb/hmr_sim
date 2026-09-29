@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="3">
+
+  <name>hmr_radio</name>
+
+  <version>0.0.1</version>
+
+  <description>Radio v2 comms emulator: the DESIGN_radio_v2 section 2.14 propagation stack on the v1 relay, tiers and airtime</description>
+
+  <maintainer email="kalhan.munasingarachchige.2023@ntu.ac.uk">Kalhan Boralessa</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>yaml-cpp</depend>
+
+  <exec_depend>hmr_sim</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,20 @@
+# Radio profile v1: v1's link equation, run by hmr_radio_node. Exists for the
+# equivalence test (hmr_radio_node under this profile must reproduce
+# hmr_comms_sim_node). Campaigns in the v1 regime keep running hmr_sim's own
+# node (RADIO=v1 in the harness), whose binary is pinned.
+# Values: hmr_sim/config/comms_sim_params.yaml as of 2026-09-29.
+hmr_comms_sim:
+  ros__parameters:
+    radio_stack: v1
+    radio_profile: v1
+    fade_mode: legacy        # v1's shared generator, v1's call order
+    ground_model: none
+    frequency_hz: 2.4e9
+    tx_power_dbm: 30.0
+    p0_db: 49.17
+    noise_floor_dbm: -101.0
+    tree_attenuation_db: 70.0
+    tree_radius_m: 0.3
+    max_range_m: 30.0
+    fade_sigma_db: 4.8
+    fade_alpha: 0.9
