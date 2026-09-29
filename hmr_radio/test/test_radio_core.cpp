@@ -109,8 +109,10 @@ TEST(E1, TrunkLossNeverNegative)
 // E0: Gay-Fernández's forest (0.03 trunks/m², r 13.9–20.4 cm, 2.45 GHz), set up
 // as the design's own check (2026-09-27): d ~ U[10, 60], trunks in a ±6 m band
 // and 1 m clear of either end along the link, k = trunks within ±1 m, slope
-// fitted through the origin. It must be 1.0–2.0 dB/trunk ([33] eq. 9: 1.52), and
-// the mean at k = 8 at most 32 dB ([33]: "up to 30 dB").
+// fitted through the origin. It must be 1.0–2.2 dB/trunk ([33] eq. 9: 1.52, with a
+// 5.87 dB estimation error; P.526 alone gives 2.0–2.1 on these radii, so the bound
+// was widened from 2.0, DESIGN_radio_v2.md §12.4 option a), and the mean at k = 8
+// at most 32 dB ([33]: "up to 30 dB").
 TEST(E0, GayFernandezSlope)
 {
   Profile p = Neutral();
@@ -142,7 +144,7 @@ TEST(E0, GayFernandezSlope)
   std::printf("[E0] slope %.3f dB/trunk (design 1.95, [33] 1.52), mean at k=8: %.1f dB (n=%d)\n",
     slope, n8 ? sum8 / n8 : NAN, n8);
   EXPECT_GE(slope, 1.0);
-  EXPECT_LE(slope, 2.0);
+  EXPECT_LE(slope, 2.2);
   ASSERT_GT(n8, 20);
   EXPECT_LE(sum8 / n8, 32.0);
 }
