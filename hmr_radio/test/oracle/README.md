@@ -13,6 +13,7 @@ reference we compare against.
 | `run_ref.sh` | the `ns3_sat` runs behind M2-M4 | |
 | `ref_ns3.txt`, `ref_ns3_phy.txt` | the recorded outputs | |
 | `model_sat.cpp` | the same scenarios through `ShareChannel` (no ns-3) | side-by-side checks |
+| `e6_phy.cpp` | §2.14's E6 link-up table re-derived at the 4 dB detection threshold, with single-link goodput (no ns-3; needs yaml-cpp) | DESIGN §13.5 |
 | `node_live_test.py` | drives a running `hmr_radio_node` (v2_phy): hidden line, then all in range | manual live check |
 
 ## Build (no root)
@@ -25,6 +26,8 @@ for p in ns3_per ns3_timing ns3_sat; do
     $(ls $N/lib64/libns3.44-*.so | sed 's#.*/lib\(ns3.44-[a-z0-9-]*\)\.so#-l\1#')
 done
 g++ -std=c++17 -O2 -I../../include model_sat.cpp ../../src/radio_mac.cpp -o model_sat
+g++ -std=c++17 -O2 -I../../include e6_phy.cpp ../../src/radio_core.cpp ../../src/radio_mac.cpp -lyaml-cpp -o e6_phy
+./e6_phy ../..
 ./run_ref.sh > ref_ns3.txt
 ```
 
