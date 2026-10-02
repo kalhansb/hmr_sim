@@ -1,0 +1,19 @@
+# Two-robot LIDAR-ONLY scenario for the maize-free DENSE flatforest world.
+#
+# Identical to flatforest_dense_2robot_lidar.yaml except the world, which
+# drops the 48 maize models (generation 39). Spawns and robots are unchanged.
+world: flatforest_dense_nomaize
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false
