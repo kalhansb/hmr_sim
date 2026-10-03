@@ -49,6 +49,20 @@ WORLDS = {
             (3.0,  0.0, 0.5, 0.0),
         ],
     },
+    # flatforest_dense_nomaize with 115 obstacles moved (max 2.97 m, none within
+    # 6 m of a spawn; worldfix make_world.py) so every gap is clearly open or
+    # clearly sealed on the planning maps (generation 40, 2026-10-03). Same 278
+    # trunks, so regenerate the radio world from the SDF (extract_radio_world.py).
+    'flatforest_dense_open': {
+        'sdf_subdir': 'flatforest',
+        'sdf_file': 'flatforest_dense_open.sdf',
+        'default_spawn_points': [
+            (0.0,  0.0, 0.5, 0.0),
+            (0.0,  3.0, 0.5, 0.0),
+            (0.0, -3.0, 0.5, 0.0),
+            (3.0,  0.0, 0.5, 0.0),
+        ],
+    },
     # Same walled 104x104 m stand at 400 stems/ha, so outages are set by
     # geometry rather than a knife-edge. More trunks raise the coverage floor:
     # re-measure it before trusting done_unknown_fraction if this world is

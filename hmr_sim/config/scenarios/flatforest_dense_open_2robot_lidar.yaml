@@ -1,0 +1,20 @@
+# Two-robot LIDAR-ONLY scenario for the pocket-free DENSE flatforest world (gen 40).
+#
+# Identical to flatforest_dense_nomaize_2robot_lidar.yaml except the world, which
+# moves 115 obstacles (max 2.97 m, none within 6 m of a spawn; make_world.py) so every gap is
+# clearly open or clearly sealed on the planning maps. Spawns and robots are unchanged.
+world: flatforest_dense_open
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false
