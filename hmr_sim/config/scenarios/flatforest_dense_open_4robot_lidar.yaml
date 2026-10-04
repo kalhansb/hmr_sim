@@ -1,0 +1,31 @@
+# Four-robot LIDAR-ONLY scenario for the pocket-free DENSE flatforest world (gen 40).
+#
+# flatforest_dense_open_3robot_lidar.yaml plus skadi at y=+6, earlier poses
+# unchanged (the same fourth spawn as flatforest_dense_4robot_lidar.yaml); the
+# team must start connected. Nearest trunk to (0, 6) is Oak tree_19 at 4.41 m,
+# unchanged from flatforest_dense (make_flatforest_dense_open.py moves none near it).
+world: flatforest_dense_open
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+  - name: husky
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: -3.0, z: 0.5, yaw: 0.0}
+
+  - name: skadi
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 6.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false
