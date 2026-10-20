@@ -63,6 +63,19 @@ WORLDS = {
             (3.0,  0.0, 0.5, 0.0),
         ],
     },
+    # flatforest_dense_open with the same 270 oaks and 8 pines re-placed as 19
+    # thickets and 21 scattered trees (make_flatforest_patchy.py, seed 3): a patchy
+    # stand at the same 257 stems/ha, the final paper's second world (2026-10-19).
+    'flatforest_patchy': {
+        'sdf_subdir': 'flatforest',
+        'sdf_file': 'flatforest_patchy.sdf',
+        'default_spawn_points': [
+            (0.0,  0.0, 0.5, 0.0),
+            (0.0,  3.0, 0.5, 0.0),
+            (0.0, -3.0, 0.5, 0.0),
+            (3.0,  0.0, 0.5, 0.0),
+        ],
+    },
     # Same walled 104x104 m stand at 400 stems/ha, so outages are set by
     # geometry rather than a knife-edge. More trunks raise the coverage floor:
     # re-measure it before trusting done_unknown_fraction if this world is

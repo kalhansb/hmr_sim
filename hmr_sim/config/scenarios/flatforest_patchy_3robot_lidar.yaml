@@ -1,0 +1,25 @@
+# Three-robot LIDAR-ONLY scenario for the patchy flatforest world (final paper, 2026-10-19).
+#
+# Identical to flatforest_dense_open_3robot_lidar.yaml except the world: flatforest_patchy.sdf
+# has the same 278 trunks re-placed by make_flatforest_patchy.py (seed 3) into 19 thickets (257 oaks) and
+# 21 scattered trees, none within 6 m of a spawn. Spawns and robots are unchanged.
+world: flatforest_patchy
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+  - name: husky
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: -3.0, z: 0.5, yaw: 0.0}
+
+teleop:
+  enable: false
